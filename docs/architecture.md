@@ -234,3 +234,26 @@ Error di tengah stream: `data: {"error": "..."}` lalu stream ditutup (bukan diam
 - `app/features/chat/service.py` — `stream_ask`
 - `app/features/chat/usecase.py` — `stream_chat` (persist + error event)
 - `app/features/chat/router.py` — `POST /api/chat/stream`
+
+### 7.5 Catatan: format SSE tidak seragam antar provider
+
+Penting untuk Fase G (multi-provider). Streaming response **tidak sama** antar provider:
+
+**Dua keluarga besar format:**
+1. **OpenAI-compatible** (OpenAI, DeepSeek, Ollama, vLLM, LM Studio):
+   `data: {chunk}\n\n`, chunk punya `choices[0].delta`, penutup `data: [DONE]`.
+   - Tapi isi `delta` beda: OpenAI → `delta.content`; DeepSeek reasoning →
+     `delta.reasoning_content` dulu lalu `delta.content`; ada juga `delta.tool_calls`,
+     `delta.role` di chunk pertama.
+2. **Anthropic** — format beda total: `event:` + `data:` bergantian
+   (`content_block_delta` → `{"delta": {"text": "..."}}`), penutup `event: message_stop`.
+
+**Varian lain yang harus ditangani parser:**
+- Chunk `usage` di akhir (tanpa delta) → parser harus return None, bukan crash.
+- Baris `keep-alive`/komentar (`: ping`) atau baris kosong → di-skip.
+- Beberapa `data:` dalam satu baris (jarang) → perlu split hati-hati.
+- Penutup bervariasi: `[DONE]`, `data: [DONE]`, atau event `done`.
+
+**Kenapa abstraksi kita aman:** `LLMProtocol.stream_chat` sudah menyeragamkan semua jadi
+`AsyncIterator[str]` (delta teks). Service & usecase tidak peduli format internal — perbedaan
+format hidup di dalam masing-masing client (Fase G: buat parser per provider).

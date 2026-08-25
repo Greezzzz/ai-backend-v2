@@ -166,6 +166,23 @@ Format: **Konteks → Keputusan → Konsekuensi**. Dokumen ini bertambah di tiap
   - ❌ Recovery mid-stream jadi tanggung jawab client (request ulang / tampilkan error) —
     relevan untuk reconnect di Fase K.
 
+## ADR-015: Format SSE tidak seragam antar provider (parser per provider)
+
+- **Status**: diterima (Fase C, berlaku untuk Fase G)
+- **Konteks**: streaming response antar provider **tidak sama** — ada dua keluarga format
+  (OpenAI-compatible vs Anthropic), dan bahkan di dalam OpenAI-compatible isi `delta` beda
+  (`content` vs `reasoning_content`), plus varian (chunk usage, keep-alive, penutup berbeda).
+- **Keputusan**:
+  - `LLMProtocol.stream_chat` menyeragamkan semua jadi `AsyncIterator[str]` (delta teks) —
+    service & usecase tidak peduli format internal.
+  - Parsing delta **provider-aware**: hidup di dalam masing-masing client, bukan di service.
+  - Di Fase G, tiap provider punya parser sendiri (OpenAI-compatible, Anthropic, dll).
+- **Konsekuensi**:
+  - ✅ Abstraksi tetap bersih; menambah provider = tinggal implementasi client + parser.
+  - ✅ Temuan konkret sudah dipakai: DeepSeek reasoning → baca `reasoning_content`
+    fallback `content`; JSON invalid → return None (jangan crash).
+  - ❌ Setiap provider baru butuh parser & test sendiri (tidak otomatis).
+
 ---
 
 ## Keputusan yang sengaja TIDAK diambil (anti-over-engineering)
