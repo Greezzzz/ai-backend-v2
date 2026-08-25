@@ -136,6 +136,36 @@ Format: **Konteks → Keputusan → Konsekuensi**. Dokumen ini bertambah di tiap
   - ✅ Eksplisit & gampang dibaca — tiap router tahu proteksinya sendiri.
   - ❌ Harus ingat memasang proteksi di router baru (bukan otomatis).
 
+## ADR-013: Streaming pakai SSE + endpoint terpisah
+
+- **Status**: diterima (Fase C)
+- **Konteks**: goals pilar 4 minta streaming response (token demi token).
+- **Keputusan**:
+  - **SSE** (server-sent events, satu arah) — cukup untuk chat; WebSocket (dua arah) tidak
+    dibutuhkan sekarang.
+  - **Endpoint terpisah** `POST /api/chat/stream` (bukan flag `stream: bool` di chat biasa)
+    karena response type beda (SSE vs JSON).
+  - **Format OpenAI-style**: `data: {json}\n\n` + `data: [DONE]` — familiar, siap untuk
+    mobile (Fase K).
+  - **Persist setelah stream selesai**: teks penuh diakumulasi, lalu simpan user + assistant.
+- **Konsekuensi**:
+  - ✅ Client (termasuk mobile) gampang adaptasi; auto-reconnect SSE.
+  - ✅ Alur chat & stream berbagi `_prepare_chat` yang sama (konsisten).
+  - ❌ Response type berbeda → client harus tahu endpoint mana yang dipakai.
+
+## ADR-014: Retry hanya pre-stream (tidak ada mid-stream retry)
+
+- **Status**: diterima (Fase C)
+- **Konteks**: diskusi desain — apakah bisa retry kalau stream putus di tengah?
+- **Keputusan**: retry hanya untuk kegagalan SEBELUM token pertama mengalir
+  (timeout connect, 429, network). Begitu stream mulai, kalau putus → kirim event
+  `data: {"error": ...}` ke client, bukan retry.
+- **Konsekuensi**:
+  - ✅ Sederhana & jujur terhadap kemampuan provider (tidak ada resume API).
+  - ✅ Client tahu persis kapan gagal.
+  - ❌ Recovery mid-stream jadi tanggung jawab client (request ulang / tampilkan error) —
+    relevan untuk reconnect di Fase K.
+
 ---
 
 ## Keputusan yang sengaja TIDAK diambil (anti-over-engineering)

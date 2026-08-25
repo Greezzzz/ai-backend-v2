@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from app.api.dependencies.auth import get_current_user
 from app.features.chat.dependencies import get_chat_usecase
@@ -26,3 +27,23 @@ async def chat(req: ChatRequest, usecase: ChatUseCase = Depends(get_chat_usecase
     )
 
     return answer
+
+
+@router.post("/stream")
+async def stream_chat(
+    req: ChatRequest,
+    usecase: ChatUseCase = Depends(get_chat_usecase),
+):
+    return StreamingResponse(
+        usecase.stream_chat(
+            conversation_id=req.conversation_id,
+            message=req.message,
+            model=req.model,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

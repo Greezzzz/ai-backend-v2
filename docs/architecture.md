@@ -186,3 +186,51 @@ request  → Authorization: Bearer <token> → get_current_user → decode & loa
 - `app/api/dependencies/auth.py` — `get_current_user`, `require_api_key`
 - `app/core/rate_limiter/http_store.py` + `app/middleware/rate_limit.py` — rate limit
 - Migration `a1b2c3d4e5f6` — tabel `users`
+
+## 7. Streaming (Fase C)
+
+### 7.1 Alur
+
+```
+POST /api/chat/stream (JWT)
+  → ChatUseCase.stream_chat
+  → siapkan conversation + context (sama seperti chat biasa)
+  → ChatService.stream_ask → LLMProtocol.stream_chat (async generator)
+  → OpenAIClient: rate limit acquire → httpx stream → parse delta → yield
+  → FastAPI StreamingResponse (SSE)
+  → client terima `data: {"delta": "..."}\n\n` ... `data: [DONE]\n\n`
+  → setelah stream selesai: simpan user + assistant (teks penuh) ke DB
+```
+
+### 7.2 Format SSE (OpenAI-style)
+
+```
+data: {"delta": "Mock "}
+
+data: {"delta": "halo "}
+
+...
+
+data: [DONE]
+```
+
+Error di tengah stream: `data: {"error": "..."}` lalu stream ditutup (bukan diam-diam putus).
+
+### 7.3 Keputusan desain streaming
+
+- **Endpoint terpisah** `POST /api/chat/stream` (bukan flag di chat biasa) — response type beda.
+- **Persist setelah stream selesai** — teks penuh diakumulasi, lalu disimpan; session DB tetap
+  hidup selama stream (dependency `get_db` ditutup setelah response selesai).
+- **Retry hanya pre-stream** — provider tidak mendukung resume mid-stream; begitu token
+  mengalir, stream dianggap "take it or leave it" (error event kalau putus).
+- **Rate limit di-acquire sekali** sebelum stream mulai.
+- **Cancellation** — saat client disconnect, async generator di-close otomatis oleh
+  Starlette (resource HTTP client ikut dilepas).
+
+### 7.4 File utama Fase C
+
+- `app/llm/protocol.py` — `stream_chat` di LLMProtocol
+- `app/llm/openai_client.py` — `stream_chat` (httpx `aiter_lines`, parse delta)
+- `app/features/chat/service.py` — `stream_ask`
+- `app/features/chat/usecase.py` — `stream_chat` (persist + error event)
+- `app/features/chat/router.py` — `POST /api/chat/stream`

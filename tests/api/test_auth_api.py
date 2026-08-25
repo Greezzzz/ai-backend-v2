@@ -119,11 +119,15 @@ def test_duplicate_register(client):
     assert second.status_code == 409
 
 
-def test_rate_limit_exceeded(client):
-    # /health tidak dikecualikan dari rate limit — hit berkali-kali sampai kena 429.
-    statuses = []
-    for _ in range(65):
-        response = client.get("/health")
-        statuses.append(response.status_code)
+def test_rate_limit_store_blocks_excess():
+    # Unit test store langsung (bukan via HTTP, karena limit test tinggi).
+    from app.core.rate_limiter.http_store import InMemoryRateLimitStore
 
-    assert 429 in statuses
+    store = InMemoryRateLimitStore(limit=2, window_seconds=60)
+
+    assert store.is_allowed("client-1") is True
+    assert store.is_allowed("client-1") is True
+    assert store.is_allowed("client-1") is False  # limit 2 tercapai
+
+    # client lain tidak terpengaruh
+    assert store.is_allowed("client-2") is True

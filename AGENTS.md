@@ -13,7 +13,9 @@ Status roadmap saat ini:
   unit+api 16 passed, integration 5 passed, smoke test `/health` `/metrics` `/get_db` OK.
 - **Fase B selesai & terverifikasi**: auth JWT + API key + rate limit HTTP. 33 test hijau
   (unit + api + integration), smoke test end-to-end register→login→chat OK.
-- Fase berikutnya (PLAN.md): C (streaming), D (jobs+Redis), E (RAG), dst.
+- **Fase C selesai & terverifikasi**: streaming SSE (`POST /api/chat/stream`). 40 test hijau,
+  smoke test stream end-to-end (mock) OK.
+- Fase berikutnya (PLAN.md): D (jobs+Redis), E (RAG), dst.
 
 Dokumen kunci: `PLAN.md` (rencana fase A–L), `README.md` (setup/run),
 `docs/architecture.md` (arsitektur), `docs/decisions.md` (ADR).
@@ -35,6 +37,16 @@ Dokumen kunci: `PLAN.md` (rencana fase A–L), `README.md` (setup/run),
 - **Error contract**: conversation not found → `BusinessException` + `ErrorCode.CONVERSATION_NOT_FOUND` (404), bukan ValueError.
 - **Chat flow**: router → usecase (resolve model → build context → LLM → simpan pesan) →
   repository → DB. `POST /api/chat/conversations` menerima `message`, `conversation_id?`, `model?`.
+- **Streaming (Fase C)**:
+  - `POST /api/chat/stream` → SSE format OpenAI-style: `data: {"delta": ...}` + `data: [DONE]`.
+  - `LLMProtocol.stream_chat` = async generator; `OpenAIClient.stream_chat` pakai httpx
+    streaming (`aiter_lines`, parse `choices[0].delta.content`).
+  - **Retry hanya pre-stream** — provider tidak dukung resume mid-stream; error mid-stream
+    dikirim sebagai event `data: {"error": ...}`.
+  - **Persist setelah stream selesai** (akumulasi teks penuh → simpan user+assistant).
+  - Rate limit di-acquire sekali sebelum stream mulai.
+  - Client disconnect → generator di-close otomatis oleh Starlette.
+  - `usecase._prepare_chat` dipakai bareng chat biasa & stream (jangan duplikasi logika).
 - **Auth (Fase B)**:
   - `/health` publik; `/metrics` API key (header `X-API-Key`); `/api/*` JWT (Bearer);
     register/login publik.

@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+
 from app.domain.llm import LLMRequest, LLMResponse
 
 
@@ -9,3 +11,11 @@ class MockClient:
             model="mock-model",
             finish_reason="stop",
         )
+
+    async def stream_chat(self, request: LLMRequest) -> AsyncIterator[str]:
+        # Simulasikan streaming: pecah jawaban jadi kata per kata.
+        words = f"Mock {request.messages[-1].content}".split()
+
+        for word in words:
+            yield word + " "
+
