@@ -111,24 +111,18 @@ class OpenAIClient:
         try:
             await self._rate_limiter.acquire()
 
-            # Retry pre-stream: timeout/429/network sebelum token pertama.
-            response = await self._retry.execute(
-                lambda: self._send_stream(payload), operation_name="openai_chat_stream"
-            )
+            async for line in self._send_stream(payload):
+                if not line.startswith("data:"):
+                    continue
 
-            async with response:
-                async for line in response.aiter_lines():
-                    if not line.startswith("data:"):
-                        continue
+                data = line[5:].strip()
 
-                    data = line[5:].strip()
+                if data == "[DONE]":
+                    break
 
-                    if data == "[DONE]":
-                        break
-
-                    delta = self._parse_stream_delta(data)
-                    if delta:
-                        yield delta
+                delta = self._parse_stream_delta(data)
+                if delta:
+                    yield delta
 
         except httpx.TimeoutException as e:
             raise LLMTimeoutException(
@@ -163,16 +157,22 @@ class OpenAIClient:
                 model=self._settings.chat.model, provider="openai"
             ).observe(duration)
 
-    async def _send_stream(self, payload: dict) -> httpx.Response:
-        response = await self._http.post(
+    async def _send_stream(self, payload: dict) -> AsyncIterator[str]:
+        """Buka stream ke provider dan yield baris SSE mentah.
+
+        WAJIB pakai `http.stream()` (async context manager), bukan `post()` —
+        response dari post() tidak mendukung aiter_lines untuk streaming.
+        """
+        async with self._http.stream(
+            "POST",
             url=f"{self._settings.base_url}/v1/chat/completions",
             headers=self._header(),
             json=payload,
-        )
+        ) as response:
+            response.raise_for_status()
 
-        response.raise_for_status()
-
-        return response
+            async for line in response.aiter_lines():
+                yield line
 
     def _build_stream_payload(self, request: LLMRequest) -> dict:
         return {
@@ -186,17 +186,27 @@ class OpenAIClient:
 
     @staticmethod
     def _parse_stream_delta(data: str) -> str | None:
-        """Ambil delta content dari satu chunk SSE."""
+        """Ambil delta teks dari satu chunk SSE.
+
+        Model reasoning (mis. DeepSeek-V4) mengirim `delta.reasoning_content`
+        dulu (proses berpikir), lalu `delta.content` (jawaban akhir). Kita
+        baca keduanya supaya stream tidak kosong.
+        """
         import json
 
-        chunk = json.loads(data)
+        try:
+            chunk = json.loads(data)
+        except json.JSONDecodeError:
+            return None
+
         choices = chunk.get("choices") or []
 
         if not choices:
             return None
 
         delta = choices[0].get("delta") or {}
-        return delta.get("content")
+
+        return delta.get("content") or delta.get("reasoning_content")
 
     async def _send_with_limit(self, payload):
 
