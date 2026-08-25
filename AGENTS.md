@@ -13,8 +13,8 @@ Status roadmap saat ini:
   unit+api 16 passed, integration 5 passed, smoke test `/health` `/metrics` `/get_db` OK.
 - **Fase B selesai & terverifikasi**: auth JWT + API key + rate limit HTTP. 33 test hijau
   (unit + api + integration), smoke test end-to-end register→login→chat OK.
-- **Fase C selesai & terverifikasi**: streaming SSE (`POST /api/chat/stream`). 40 test hijau,
-  smoke test stream end-to-end (mock) OK.
+- **Fase C selesai & terverifikasi**: streaming SSE (`POST /api/chat/stream`). 43 test hijau,
+  smoke test stream ke provider asli OK (50 chunk).
 - Fase berikutnya (PLAN.md): D (jobs+Redis), E (RAG), dst.
 
 Dokumen kunci: `PLAN.md` (rencana fase A–L), `README.md` (setup/run),
@@ -40,7 +40,15 @@ Dokumen kunci: `PLAN.md` (rencana fase A–L), `README.md` (setup/run),
 - **Streaming (Fase C)**:
   - `POST /api/chat/stream` → SSE format OpenAI-style: `data: {"delta": ...}` + `data: [DONE]`.
   - `LLMProtocol.stream_chat` = async generator; `OpenAIClient.stream_chat` pakai httpx
-    streaming (`aiter_lines`, parse `choices[0].delta.content`).
+    streaming.
+  - **PENTING (bug yang sudah diperbaiki)**: streaming WAJIB pakai `http.stream()`
+    (`async with ... as response`), BUKAN `http.post()` (response post tidak support
+    `aiter_lines`) dan BUKAN `await http.stream()` (itu async context manager, bukan
+    coroutine). `_send_stream` = async generator yang yield baris SSE.
+  - **PENTING**: model reasoning (DeepSeek-V4) kirim `delta.reasoning_content` dulu, baru
+    `delta.content`. `_parse_stream_delta` baca `content` fallback `reasoning_content`,
+    dan return None untuk JSON invalid (jangan crash). Format SSE beda antar provider —
+    lihat docs/architecture.md §7.5 & ADR-015 (parser per provider di Fase G).
   - **Retry hanya pre-stream** — provider tidak dukung resume mid-stream; error mid-stream
     dikirim sebagai event `data: {"error": ...}`.
   - **Persist setelah stream selesai** (akumulasi teks penuh → simpan user+assistant).
