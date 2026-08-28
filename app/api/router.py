@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.metrics import router as metrics_router
 from app.features.auth.router import router as auth_router
 from app.features.chat.router import router as chat_router
+from app.features.job.router import router as job_router
 
 # Router publik / root: hanya health check (dan metrics via API key)
 root_router = APIRouter()
@@ -14,6 +15,7 @@ api_router = APIRouter(prefix="/api")
 
 api_router.include_router(auth_router)
 api_router.include_router(chat_router)
+api_router.include_router(job_router)
 
 
 @root_router.get("/health")

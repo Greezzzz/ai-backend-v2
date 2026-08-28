@@ -41,7 +41,7 @@ Rencana & fase: [PLAN.md](PLAN.md)
 uv sync
 
 # buat file .env dari template (isi sendiri, jangan di-commit)
-# minimal: OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, DB_* (lihat app/core/config/)
+# minimal: CHAT_API_KEY, CHAT_BASE_URL, CHAT_MODEL, DB_* (lihat app/core/config/)
 ```
 
 > `.env` tidak dibaca isinya oleh siapapun — hanya dipakai runtime lewat pydantic-settings.

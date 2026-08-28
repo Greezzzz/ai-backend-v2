@@ -5,10 +5,11 @@ class ChatMessage(BaseModel):
     role: str
     content: str
 
+
 class LLMRequest(BaseModel):
     messages: list[ChatMessage]
-    temperature: float | None = None
     max_tokens: int | None = None
+    temperature: float | None = None
 
 
 class TokenUsage(BaseModel):

@@ -1,0 +1,52 @@
+# Jaeger v2 (OpenTelemetry Collector-based) — all-in-one config.
+# Berdasarkan contoh resmi: cmd/jaeger/config-badger.yaml
+#
+# Pipeline: OTLP (4317 gRPC / 4318 HTTP) → jaeger_storage (badger) →
+#           jaeger_query (UI di 16686).
+service:
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    resource:
+      service.name: jaeger
+    logs:
+      level: info
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+
+  jaeger_query:
+    storage:
+      traces: badger
+
+  jaeger_storage:
+    backends:
+      badger:
+        badger:
+          directories:
+            keys: "/badger"
+            values: "/badger"
+          ephemeral: false
+          ttl:
+            spans: 48h
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: badger

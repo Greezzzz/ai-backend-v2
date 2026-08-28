@@ -1,9 +1,12 @@
 from collections.abc import AsyncIterator
 
-from app.domain.llm import LLMRequest, LLMResponse
+from app.domain.llm import LLMRequest, LLMResponse, TokenUsage
 
 
 class MockClient:
+
+    def __init__(self):
+        self.last_usage: TokenUsage | None = None
 
     async def chat(self, request: LLMRequest) -> LLMResponse:
         return LLMResponse(
@@ -18,4 +21,3 @@ class MockClient:
 
         for word in words:
             yield word + " "
-

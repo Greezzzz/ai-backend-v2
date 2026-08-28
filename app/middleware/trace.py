@@ -1,8 +1,9 @@
 import time
 
+from opentelemetry import trace as otel_trace
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.core.context.trace import clear_trace_id, create_trace_id, set_trace_id
+from app.core.context.trace import clear_trace_id, create_trace_id, get_trace_id, set_trace_id
 from app.core.logging.logger import logger
 from app.core.metrics.http import http_request_duration_seconds, http_request_total
 
@@ -15,20 +16,26 @@ class TraceMiddleware(BaseHTTPMiddleware):
             call_next,
     ):
 
-        trace_id = request.headers.get(
-            "X-Trace-id"
-        )
+        client_trace_id = request.headers.get("X-Trace-Id")
 
         start = time.monotonic()
 
-        if trace_id:
-            set_trace_id(trace_id)
+        if client_trace_id:
+            set_trace_id(client_trace_id)
         else:
-            trace_id = create_trace_id()
+            create_trace_id()
+
+        # Bridge trace id klien ke span OTel aktif (kalau ada), supaya bisa
+        # dicari dari Jaeger via atribut client.trace_id.
+        span = otel_trace.get_current_span()
+        span_context = span.get_span_context()
+
+        if span_context.is_valid and client_trace_id:
+            span.set_attribute("client.trace_id", client_trace_id)
 
         logger.info(
             "http_request_started",
-            method = request.method,
+            method=request.method,
             path=request.url.path
         )
 
@@ -62,7 +69,11 @@ class TraceMiddleware(BaseHTTPMiddleware):
                 latency=round(latency,2),
             )
 
-            response.headers["X-Trace-Id"] = trace_id
+            # X-Trace-Id = trace id server (OTel, sama dengan di Jaeger).
+            # X-Client-Trace-Id = trace id dari klien (echo).
+            response.headers["X-Trace-Id"] = get_trace_id() or ""
+            if client_trace_id:
+                response.headers["X-Client-Trace-Id"] = client_trace_id
 
             return response
 

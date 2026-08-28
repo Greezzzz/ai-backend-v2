@@ -3,14 +3,14 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from app.llm import dependencies as llm_deps
+from app.llm.factory import get_chat_client
 from app.llm.mock_client import MockClient
 from app.main import app
 
 
 @pytest.fixture
 def client():
-    app.dependency_overrides[llm_deps.get_openai_client] = lambda: MockClient()
+    app.dependency_overrides[get_chat_client] = lambda: MockClient()
 
     with TestClient(app) as c:
         yield c

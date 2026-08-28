@@ -1,8 +1,5 @@
 from dataclasses import dataclass
 
-# Model default yang dipakai kalau client tidak memilih model.
-DEFAULT_MODEL = "deepseek-v4-flash"
-
 
 @dataclass(frozen=True)
 class ModelProfile:

@@ -29,3 +29,8 @@ htmlcov/
 .vscode/
 .idea/
 .DS_Store
+
+# Local tool state / scratch (bukan bagian dari project)
+.commandcode/
+state.txt
+app/domain/probe.txt

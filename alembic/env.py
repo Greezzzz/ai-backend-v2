@@ -9,6 +9,7 @@ from app.core.database.base import Base
 from app.core.database.config import DatabaseSettings
 from app.features.auth.model import User  # noqa: F401  (register metadata)
 from app.features.chat.model import Conversation  # noqa: F401  (register metadata)
+from app.features.job.model import Job  # noqa: F401  (register metadata)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

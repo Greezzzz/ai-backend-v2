@@ -86,11 +86,20 @@ TokenCounterRegistry (domain/token_counter.py) → model → TokenCounter
 ### 3.4 Observability
 
 - **Trace**: `TraceMiddleware` → `trace_id` (ContextVar). Bisa di-inject via header
-  `X-Trace-Id`, di-echo balik di response header `X-Trace-Id`.
+  `X-Trace-Id`, di-echo balik di response header `X-Trace-Id`. OpenTelemetry
+  (OTel) terpasang: span server per request + LLM span + OTLP ke Jaeger v2.
 - **Logging**: `JsonFormatter` → semua log JSON, otomatis bawa `trace_id`.
 - **Metrics** (Prometheus): HTTP (total, duration), LLM (total, duration, input/output
   tokens), retry (attempts, exhausted), rate limiter (tokens available).
-  Endpoint: `GET /metrics`.
+  Endpoint: `GET /metrics` (dilindungi `X-API-Key`).
+- **Stack (docker-compose)**: Prometheus scrape `/metrics` (target
+  `host.docker.internal:8000`, header `X-API-Key` di `deploy/prometheus.yml`),
+  UI `localhost:9090`. Grafana (UI `localhost:3000`, admin/admin dev) membaca
+  dari Prometheus, data source auto-provision di `deploy/grafana-provisioning/`.
+  Dashboard auto-provision (JSON): API Overview, LLM & Tokens, Health &
+  Reliability di `deploy/grafana-provisioning/dashboards/`.
+- **Metrik LLM detail**: `llm_error_total{error_type,model,provider}`
+  (timeout/rate_limit/auth/provider) + `chat_messages_sent_total{role}`.
 
 ### 3.5 Exception & error contract
 
@@ -257,3 +266,75 @@ Penting untuk Fase G (multi-provider). Streaming response **tidak sama** antar p
 **Kenapa abstraksi kita aman:** `LLMProtocol.stream_chat` sudah menyeragamkan semua jadi
 `AsyncIterator[str]` (delta teks). Service & usecase tidak peduli format internal — perbedaan
 format hidup di dalam masing-masing client (Fase G: buat parser per provider).
+
+---
+
+## 8. Background Jobs & Redis (Fase D)
+
+### 8.1 Alur submit & eksekusi job
+
+```
+Client (JWT)
+    ↓ POST /api/jobs {type, payload}
+router.py → JobUseCase.create_job
+    ├── validasi type (ada di JOB_TASKS?) → 400 kalau tidak
+    ├── JobRepository.create → Job(status="queued") → commit DB   ← DB = sumber kebenaran
+    └── enqueue_job → rq.Queue("ai-jobs") → Redis
+                          ↓ (pop)
+        RQ worker (app.jobs.worker) → job function dari JOB_TASKS
+            └── buka session DB sendiri
+                ├── mark_running → commit
+                ├── proses (echo: payload → result)
+                ├── mark_succeeded(result) | mark_failed(error) → commit
+Client → GET /api/jobs/{id} → JobResponse (status terbaru dari DB)
+```
+
+### 8.2 Job lifecycle
+
+| Status | Arti | Di-set oleh |
+|---|---|---|
+| `queued` | Dibuat; antri di Redis (atau belum diambil worker) | `create_job` (usecase) |
+| `running` | Worker sedang memproses | task (mark_running) |
+| `succeeded` | Selesai; `result` terisi | task (mark_succeeded) |
+| `failed` | Gagal; `error` terisi | task (mark_failed) |
+
+**DB adalah sumber kebenaran** — RQ hanya antrian (state Redis). Status lifecycle disimpan
+di tabel `jobs` dan di-update worker. Job tetap bisa di-query walau Redis restart / worker mati.
+
+### 8.3 Redis wiring (dua koneksi berbeda)
+
+- **App (FastAPI)**: `redis.asyncio.from_url(settings.redis.url)` di `lifespan` →
+  `app.state.redis`, ditutup via `aclose()` saat shutdown. Dipakai nanti untuk caching.
+- **RQ (worker & enqueue)**: `redis.Redis` **sync** — API RQ sinkron. Dibuat dari
+  `settings.redis.url` di `app/features/job/queue.py` & `app/jobs/worker.py`.
+- `REDIS_URL` di settings (default `redis://localhost:6379/0`) & `.env-example`.
+- `docker-compose.yml` menyediakan `redis:7-alpine` di port `6379`.
+
+### 8.4 Error contract job
+
+- Type tidak dikenal → `BusinessException` + `ErrorCode.VALIDATION_ERROR` → **400**.
+- Job tidak ditemukan → `BusinessException` + `ErrorCode.JOB_NOT_FOUND` → **404**.
+- Endpoint `/api/jobs*` dilindungi JWT (sama seperti chat).
+
+### 8.5 Worker: proses terpisah & kendala Windows
+
+- Worker adalah proses terpisah dari FastAPI (`python -m app.jobs.worker`) — RQ memanggil
+  fungsi task **sync**, yang membuka engine/session DB-nya sendiri via `asyncio.run()`.
+- **Kendala nyata**: RQ worker default (`Worker`) & `SpawnWorker` butuh `os.fork`/`os.wait4`
+  yang **tidak ada di Windows**. Environment belajar ini = WSL + python Windows, jadi dipakai
+  `SimpleWorker` (eksekusi job di proses yang sama, tanpa fork).
+- **Konsekuensi**: satu job crash bisa menimpa worker (tidak ter-isolasi). Cukup untuk belajar;
+  saat deploy Linux (Fase J) ganti ke `Worker` (fork) untuk isolasi proses.
+- Retry pada job level (create → requeue) belum disertakan; idempotency menjadi bagian rencana
+  Fase berikut (mirip latency RAG/agent jobs).
+
+### 8.6 File utama Fase D
+
+- `app/features/job/model.py` — `Job` + helper `mark_running/succeeded/failed`
+- `app/features/job/repository.py` — create & get_by_id
+- `app/features/job/tasks.py` — `JOB_TASKS` registry + `echo_job` (template worker)
+- `app/features/job/queue.py` — `rq.Queue("ai-jobs")` + `enqueue_job`
+- `app/features/job/usecase.py` — `create_job`, `get_job`
+- `app/features/job/router.py` — `POST /api/jobs`, `GET /api/jobs/{id}`
+- `app/jobs/worker.py` — entry worker RQ
+- `app/core/config/redis.py`, `app/core/lifespan.py`, `docker-compose.yml`

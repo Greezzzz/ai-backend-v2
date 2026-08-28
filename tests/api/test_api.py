@@ -54,4 +54,14 @@ def test_trace_middleware_sets_trace_id(client):
 def test_trace_middleware_respects_incoming_trace_id(client):
     response = client.get("/health", headers={"X-Trace-Id": "my-custom-trace"})
     assert response.status_code == 200
-    assert response.headers.get("X-Trace-Id") == "my-custom-trace"
+
+    # X-Client-Trace-Id selalu echo id klien.
+    assert response.headers.get("X-Client-Trace-Id") == "my-custom-trace"
+
+    # X-Trace-Id = id server: 32-hex OTel kalau span aktif, atau id klien kalau
+    # fallback (OTel mati). Tergantung state provider global dari test lain.
+    server_trace_id = response.headers.get("X-Trace-Id")
+    assert server_trace_id in ("my-custom-trace",) or (
+        len(server_trace_id) == 32
+        and all(ch in "0123456789abcdef" for ch in server_trace_id)
+    )

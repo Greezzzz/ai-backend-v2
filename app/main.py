@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
 from app.api.router import api_router, root_router
 from app.core.config.settings import get_settings
@@ -9,9 +11,15 @@ from app.core.rate_limiter.http_store import InMemoryRateLimitStore
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.trace import TraceMiddleware
 
+# Instrumentasi otomatis: httpx client (panggilan LLM) jadi child span.
+HTTPXClientInstrumentor().instrument()
+
 app = FastAPI(lifespan=lifespan)
 
 settings = get_settings()
+
+# Span server per request (trace_id OTel); middleware X-Trace-Id tetap dipertahankan.
+FastAPIInstrumentor.instrument_app(app)
 
 app.add_middleware(
     TraceMiddleware

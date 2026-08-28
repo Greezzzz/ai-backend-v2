@@ -1,0 +1,68 @@
+name: ai-backend-v2
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  # PostgreSQL + pgvector (untuk RAG). Pakai port host 5433 supaya tidak
+  # konflik dengan container postgres:16 user yang sudah memakai 5432.
+  # Postgres di dalam container listen di 5432 → map host 5433 ke 5432.
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ai_backend_v2
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Jaeger v2 (OpenTelemetry Collector-based) — tracing UI + OTLP collector.
+  # App kirim trace ke http://localhost:4318/v1/traces (OTEL_ENABLED=true).
+  # UI: http://localhost:16686
+  jaeger:
+    image: jaegertracing/jaeger:latest
+    user: "0:0"  # container berjalan non-root (uid 10001); root supaya bisa tulis /badger
+    command:
+      - --config=/etc/jaeger/config.yml
+    volumes:
+      - ./deploy/jaeger-config.yml:/etc/jaeger/config.yml:ro
+      - jaeger-data:/badger
+    ports:
+      - "16686:16686"   # UI (jaeger query)
+      - "4318:4318"     # OTLP HTTP
+      - "4317:4317"     # OTLP gRPC
+
+  # Prometheus — scrape /metrics app (host) + simpan time series.
+  # UI: http://localhost:9090
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  # Grafana — dashboard UI, baca data dari Prometheus.
+  # UI: http://localhost:3000 (admin/admin untuk dev; ganti di production).
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./deploy/grafana-provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana-provisioning/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  pgdata:
+  jaeger-data:
+  prometheus-data:
+  grafana-data:

@@ -36,3 +36,13 @@ llm_output_tokens_total = Counter(
         "provider"
     ]
 )
+
+llm_error_total = Counter(
+    "llm_error_total",
+    "Total number of LLM Errors by type",
+    [
+        "error_type",
+        "model",
+        "provider"
+    ]
+)

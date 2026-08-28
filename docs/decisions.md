@@ -183,6 +183,56 @@ Format: **Konteks → Keputusan → Konsekuensi**. Dokumen ini bertambah di tiap
     fallback `content`; JSON invalid → return None (jangan crash).
   - ❌ Setiap provider baru butuh parser & test sendiri (tidak otomatis).
 
+## ADR-016: Redis via Docker + `redis.asyncio` di app, sync di RQ
+
+- **Status**: diterima (Fase D)
+- **Konteks**: butuh Redis untuk queue background job (dan nantinya cache, rate limit
+  distributed). Tapi app FastAPI memakai `asyncio`, sedangkan RQ/`redis-py` sync.
+- **Keputusan**: dua koneksi berbeda:
+  - **App**: `redis.asyncio.from_url` di `lifespan` (ke `app.state.redis`), untuk operasi
+    async (cache).
+  - **RQ**: `redis.Redis` **sync** (di `queue.py` & `worker.py`) karena API RQ sinkron.
+  - Redis dijalankan via `docker-compose.yml` (`redis:7-alpine`, port `6379`).
+- **Konsekuensi**:
+  - ✅ Tidak mencampur event loop: async app vs sync worker masing-masing punya client benar.
+  - ✅ Redis diasumsikan tersedia saat app start (lifespan connect) — konsekuensi: kalau Redis
+    mati, app bisa gagal start; diterima untuk dev, mitigasi nanti di observability (Fase I).
+  - ❌ Dua client Redis (async & sync) = sedikit duplikasi konfigurasi.
+
+## ADR-017: DB sebagai sumber kebenaran status job (RQ hanya antrian)
+
+- **Status**: diterima (Fase D)
+- **Konteks**: job punya lifecycle `queued → running → succeeded/failed`. Kalau status
+  cuma hidup di RQ/Redis, hilang saat Redis restart; dan query history job jadi susah.
+- **Keputusan**: simpan status & metadata job di tabel `jobs` (DB Postgres). RQ hanya
+  mengantri "panggil function ini dengan argumen ini"; worker meng-update status di DB
+  (create → queued, fetch → mark_running, selesai → mark_succeeded/failed).
+- **Konsekuensi**:
+  - ✅ Job tetap bisa di-query walau Redis/worker mati; DB jadi single source of truth.
+  - ✅ Gampang buat list/history job, audit, dan recovery nanti.
+  - ❌ Worker butuh akses DB sendiri (buka engine/session terpisah via `asyncio.run()`) —
+    tidak bisa reuse session dari request FastAPI.
+
+## ADR-018: RQ (bukan Celery) + worker generik `echo` dulu
+
+- **Status**: diterima (Fase D)
+- **Konteks**: PLAN minta RQ (ringan) untuk belajar, Celery opsional nanti; worker ingestion
+  RAG butuh fondasi yang jelas.
+- **Keputusan**:
+  - **RQ**, bukan Celery — ringan, cukup untuk belajar; migrasi ke Celery mungkin di Fase J.
+  - **Worker generik `echo`** (bukti lifecycle) sekarang; worker ingestion/embedding baru di
+    Fase E. Task function di-resolve dari registry `JOB_TASKS` sesuai `type`.
+- **Konsekuensi**:
+  - ✅ Bukti end-to-end lifecycle queued→running→succeeded bisa ditest tanpa fitur berat.
+  - ✅ `_run_job` di `tasks.py` jadi template worker RAG (buka session → running → proses →
+    succeeded/failed).
+  - ❌ Tambahan konsep baru (queue) memperbesar scope; ditunda caching chat & migrasi rate
+    limit ke Redis ke fase berikut.
+  - **Kendala Windows (belajar penting):** RQ worker default & `SpawnWorker` butuh `os.fork` /
+    `os.wait4` yang tidak ada di Windows. Karena environment belajar = WSL + python Windows,
+    kita pakai `SimpleWorker` (in-process, tanpa fork — tapi tanpa isolasi proses per job).
+    Saat deploy Linux (Fase J) ganti ke `Worker` (fork) agar job crash tidak menimpa worker.
+
 ---
 
 ## Keputusan yang sengaja TIDAK diambil (anti-over-engineering)

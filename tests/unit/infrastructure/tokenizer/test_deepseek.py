@@ -67,3 +67,17 @@ def test_count_messages_increases_with_history():
     expanded_count = counter.count_messages(messages)
 
     assert expanded_count > initial_count
+
+
+def test_token_correction_adds_fixed_offset():
+    messages = [
+        ChatMessage(
+            role="user",
+            content="Hello",
+        )
+    ]
+
+    base = DeepSeekV4TokenCounter(token_correction=0)
+    corrected = DeepSeekV4TokenCounter(token_correction=79)
+
+    assert corrected.count_messages(messages) == base.count_messages(messages) + 79

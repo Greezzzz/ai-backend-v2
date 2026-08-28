@@ -27,7 +27,11 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
-    op.drop_table('users')
+    # Warisan dari schema v1 (ai-backend). Pada DB kosong/fresh tabel users
+    # belum ada — guard supaya bootstrap tidak gagal.
+    conn = op.get_bind()
+    if conn.dialect.has_table(conn, 'users'):
+        op.drop_table('users')
     # ### end Alembic commands ###
 
 

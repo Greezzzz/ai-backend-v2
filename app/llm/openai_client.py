@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 
 import httpx
 
-from app.core.config.openai import OpenAISettings
+from app.core.config.llm import LLMSettings
 from app.core.exceptions.llm import (
     LLmAuthenticationException,
     LLMProviderException,
@@ -12,11 +12,13 @@ from app.core.exceptions.llm import (
 )
 from app.core.logging.logger import logger
 from app.core.metrics.llm import (
+    llm_error_total,
     llm_input_tokens_total,
     llm_output_tokens_total,
     llm_request_duration_seconds,
     llm_request_total,
 )
+from app.core.observability.llm import _set_token_usage, instrument_llm_call
 from app.core.rate_limiter.limiter import RateLimiter
 from app.core.retry.executor import RetryExecutor
 from app.domain.llm import LLMRequest, LLMResponse, TokenUsage
@@ -27,7 +29,7 @@ class OpenAIClient:
     def __init__(
         self,
         http: httpx.AsyncClient,
-        settings: OpenAISettings,
+        settings: LLMSettings,
         retry_executor: RetryExecutor,
         rate_limiter: RateLimiter,
     ):
@@ -35,64 +37,83 @@ class OpenAIClient:
         self._settings = settings
         self._retry = retry_executor
         self._rate_limiter = rate_limiter
+        self._last_usage: TokenUsage | None = None
+
+    @property
+    def last_usage(self) -> TokenUsage | None:
+        """Token usage dari chunk stream terakhir yang membawa `usage` (jika ada)."""
+        return self._last_usage
 
     async def chat(self, request: LLMRequest):
         start = time.monotonic()
         is_fail = False
 
-        try:
-            payload = self._build_payload(request)
+        async with instrument_llm_call(
+            provider="openai",
+            model=self._settings.chat.model,
+            operation="chat",
+        ) as span:
+            try:
+                payload = self._build_payload(request)
 
-            logger.info("llm_request_started", model=self._settings.chat.model)
+                logger.info("llm_request_started", model=self._settings.chat.model)
 
-            data = await self._retry.execute(
-                lambda: self._send_with_limit(payload), operation_name="openai_chat"
-            )
+                data = await self._retry.execute(
+                    lambda: self._send_with_limit(payload), operation_name="openai_chat"
+                )
 
-            logger.debug("llm_request_response", response=data)
+                logger.debug("llm_request_response", response=data)
 
-        except httpx.TimeoutException as e:
-            is_fail = True
-            raise LLMTimeoutException(
-                details={
-                    "model": self._settings.chat.model,
-                    "timeout": self._settings.http.read,
-                }
-            ) from e
-        except httpx.HTTPStatusError as e:
-            is_fail = True
-            if e.response.status_code == 429:
-                raise LLMRateLimitException() from e
-            elif e.response.status_code == 401:
-                raise LLmAuthenticationException() from e
-            else:
-                raise LLMProviderException() from e
-        except Exception as e:
-            is_fail = True
-            raise LLMProviderException(
-                details={
-                    "model": self._settings.chat.model,
-                    "exception": type(e).__name__,
-                }
-            ) from e
+            except httpx.TimeoutException as e:
+                is_fail = True
+                self._inc_llm_error("timeout")
+                raise LLMTimeoutException(
+                    details={
+                        "model": self._settings.chat.model,
+                        "timeout": self._settings.http.read,
+                    }
+                ) from e
+            except httpx.HTTPStatusError as e:
+                is_fail = True
+                if e.response.status_code == 429:
+                    self._inc_llm_error("rate_limit")
+                    raise LLMRateLimitException() from e
+                elif e.response.status_code == 401:
+                    self._inc_llm_error("auth")
+                    raise LLmAuthenticationException() from e
+                else:
+                    self._inc_llm_error("provider")
+                    raise LLMProviderException() from e
+            except Exception as e:
+                is_fail = True
+                self._inc_llm_error("provider")
+                raise LLMProviderException(
+                    details={
+                        "model": self._settings.chat.model,
+                        "exception": type(e).__name__,
+                    }
+                ) from e
 
-        finally:
-            duration = time.monotonic() - start
+            finally:
+                duration = time.monotonic() - start
 
-            llm_request_total.labels(
-                model=self._settings.chat.model,
-                status="error" if is_fail else "success",
-                provider="openai",
-            ).inc()
+                llm_request_total.labels(
+                    model=self._settings.chat.model,
+                    status="error" if is_fail else "success",
+                    provider="openai",
+                ).inc()
 
-            llm_request_duration_seconds.labels(
-                model=self._settings.chat.model, provider="openai"
-            ).observe(duration)
+                llm_request_duration_seconds.labels(
+                    model=self._settings.chat.model, provider="openai"
+                ).observe(duration)
 
-            if is_fail:
-                logger.error("llm_request_failed", exc_info=True)
+                if is_fail:
+                    logger.error("llm_request_failed", exc_info=True)
 
-        return self._to_domain(data)
+            response = self._to_domain(data)
+            _set_token_usage(span, response.usage)
+
+        return response
 
     async def stream_chat(self, request: LLMRequest) -> AsyncIterator[str]:
         """Streaming chat: yield delta teks.
@@ -105,69 +126,99 @@ class OpenAIClient:
         """
         start = time.monotonic()
         payload = self._build_stream_payload(request)
+        self._last_usage = None
 
         logger.info("llm_stream_started", model=self._settings.chat.model)
 
-        try:
-            await self._rate_limiter.acquire()
+        async with instrument_llm_call(
+            provider="openai",
+            model=self._settings.chat.model,
+            operation="stream",
+        ):
+            try:
+                await self._rate_limiter.acquire()
 
-            async for line in self._send_stream(payload):
-                if not line.startswith("data:"):
-                    continue
+                async for line in self._send_stream(payload):
+                    if not line.startswith("data:"):
+                        continue
 
-                data = line[5:].strip()
+                    data = line[5:].strip()
 
-                if data == "[DONE]":
-                    break
+                    if data == "[DONE]":
+                        break
 
-                delta = self._parse_stream_delta(data)
-                if delta:
-                    yield delta
+                    delta = self._parse_stream_delta(data)
+                    if delta:
+                        yield delta
 
-        except httpx.TimeoutException as e:
-            raise LLMTimeoutException(
-                details={
-                    "model": self._settings.chat.model,
-                    "timeout": self._settings.http.read,
-                }
-            ) from e
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 429:
-                raise LLMRateLimitException() from e
-            elif e.response.status_code == 401:
-                raise LLmAuthenticationException() from e
-            else:
-                raise LLMProviderException() from e
-        except Exception as e:
-            raise LLMProviderException(
-                details={
-                    "model": self._settings.chat.model,
-                    "exception": type(e).__name__,
-                }
-            ) from e
+                    # Chunk usage bisa muncul di posisi mana pun (awal/tengah/
+                    # akhir) — deteksi via kehadiran field `usage`, bukan
+                    # ketiadaan choices (chunk usage tetap punya choices kosong).
+                    usage = self._parse_stream_usage(data)
+                    if usage is not None:
+                        self._last_usage = usage
 
-        finally:
-            duration = time.monotonic() - start
-            llm_request_total.labels(
-                model=self._settings.chat.model,
-                status="success",
-                provider="openai",
-            ).inc()
-            llm_request_duration_seconds.labels(
-                model=self._settings.chat.model, provider="openai"
-            ).observe(duration)
+            except httpx.TimeoutException as e:
+                self._inc_llm_error("timeout")
+                raise LLMTimeoutException(
+                    details={
+                        "model": self._settings.chat.model,
+                        "timeout": self._settings.http.read,
+                    }
+                ) from e
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    self._inc_llm_error("rate_limit")
+                    raise LLMRateLimitException() from e
+                elif e.response.status_code == 401:
+                    self._inc_llm_error("auth")
+                    raise LLmAuthenticationException() from e
+                else:
+                    self._inc_llm_error("provider")
+                    raise LLMProviderException() from e
+            except Exception as e:
+                self._inc_llm_error("provider")
+                raise LLMProviderException(
+                    details={
+                        "model": self._settings.chat.model,
+                        "exception": type(e).__name__,
+                    }
+                ) from e
+
+            finally:
+                duration = time.monotonic() - start
+                llm_request_total.labels(
+                    model=self._settings.chat.model,
+                    status="success",
+                    provider="openai",
+                ).inc()
+                llm_request_duration_seconds.labels(
+                    model=self._settings.chat.model, provider="openai"
+                ).observe(duration)
 
     async def _send_stream(self, payload: dict) -> AsyncIterator[str]:
         """Buka stream ke provider dan yield baris SSE mentah.
 
         WAJIB pakai `http.stream()` (async context manager), bukan `post()` —
         response dari post() tidak mendukung aiter_lines untuk streaming.
+
+        Timeout read stream sengaja lebih longgar (per-request) daripada timeout
+        read global: model reasoning bisa diam lama sebelum token pertama keluar,
+        dan jeda antar-chunk tidak boleh dianggap timeout.
         """
+        stream_timeout = httpx.Timeout(
+            connect=self._settings.http.connect,
+            read=self._settings.http.stream_read,
+            write=self._settings.http.write,
+            pool=self._settings.http.pool,
+        )
+
         async with self._http.stream(
             "POST",
             url=f"{self._settings.base_url}/v1/chat/completions",
             headers=self._header(),
             json=payload,
+            timeout=stream_timeout,
         ) as response:
             response.raise_for_status()
 
@@ -180,8 +231,18 @@ class OpenAIClient:
             "messages": [
                 {"role": msg.role, "content": msg.content} for msg in request.messages
             ],
-            "max_tokens": self._settings.chat.max_tokens,
+            "max_tokens": (
+                request.max_tokens
+                if request.max_tokens is not None
+                else self._settings.chat.max_output_tokens
+            ),
+            "temperature": (
+                request.temperature
+                if request.temperature is not None
+                else self._settings.chat.temperature
+            ),
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
 
     @staticmethod
@@ -208,6 +269,33 @@ class OpenAIClient:
 
         return delta.get("content") or delta.get("reasoning_content")
 
+    @staticmethod
+    def _parse_stream_usage(data: str) -> TokenUsage | None:
+        """Ambil token usage dari satu chunk SSE, jika field `usage` ada.
+
+        Chunk usage (OpenAI/DeepSeek dengan `stream_options.include_usage`)
+        punya `choices` (delta kosong) PLUS `usage` di level atas — jadi deteksi
+        berdasarkan kehadiran `usage`, bukan ketiadaan choices. Posisi chunk
+        bebas (awal/tengah/akhir).
+        """
+        import json
+
+        try:
+            chunk = json.loads(data)
+        except json.JSONDecodeError:
+            return None
+
+        usage = chunk.get("usage")
+
+        if not usage:
+            return None
+
+        return TokenUsage(
+            input_tokens=usage.get("prompt_tokens") or 0,
+            output_tokens=usage.get("completion_tokens") or 0,
+            total_tokens=usage.get("total_tokens") or 0,
+        )
+
     async def _send_with_limit(self, payload):
 
         await self._rate_limiter.acquire()
@@ -223,7 +311,16 @@ class OpenAIClient:
             "messages": [
                 {"role": msg.role, "content": msg.content} for msg in request.messages
             ],
-            "max_tokens": self._settings.chat.max_tokens,
+            "max_tokens": (
+                request.max_tokens
+                if request.max_tokens is not None
+                else self._settings.chat.max_output_tokens
+            ),
+            "temperature": (
+                request.temperature
+                if request.temperature is not None
+                else self._settings.chat.temperature
+            ),
         }
 
     async def _send(self, payload: dict) -> dict:
@@ -248,10 +345,15 @@ class OpenAIClient:
             data["usage"]["completion_tokens"]
         )
 
+        message = data["choices"][0].get("message") or {}
+
         return LLMResponse(
-            content=data["choices"][0]["message"]["content"],
+            # Model reasoning (DeepSeek-V4) bisa mengirim jawaban di
+            # `reasoning_content` dan `content` kosong — fallback supaya
+            # jawaban akhir tidak tertukar dengan teks berpikir.
+            content=message.get("content") or message.get("reasoning_content") or "",
             model=data["model"],
-            finish_reason=data["choices"][0]["finish_reason"],
+            finish_reason=data["choices"][0].get("finish_reason"),
             usage=TokenUsage(
                 input_tokens=data["usage"]["prompt_tokens"],
                 output_tokens=data["usage"]["completion_tokens"],
@@ -264,3 +366,10 @@ class OpenAIClient:
             "Authorization": f"Bearer {self._settings.api_key}",
             "Content-Type": "application/json",
         }
+
+    def _inc_llm_error(self, error_type: str) -> None:
+        llm_error_total.labels(
+            error_type=error_type,
+            model=self._settings.chat.model,
+            provider="openai",
+        ).inc()

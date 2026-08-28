@@ -9,7 +9,7 @@ def get_openai_retry(
     resources: Resources = Depends(get_resources),
 ) -> RetryPolicy:
     return OpenAIRetryPolicy(
-        resources.settings.openai.retry
+        resources.settings.chat.retry
     )
 
 
