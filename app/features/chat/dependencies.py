@@ -10,6 +10,8 @@ from app.domain.token import TokenCounterProtocol
 from app.domain.token_counter import TokenCounterRegistry
 from app.features.chat.service import ChatService
 from app.features.chat.usecase import ChatUseCase
+from app.features.rag.dependencies import get_rag_service
+from app.features.rag.service import RagService
 from app.infrastructure.tokenizer.deepseek.v4.token_counter import (
     DeepSeekV4TokenCounter,
 )
@@ -141,6 +143,7 @@ async def get_chat_usecase(
     model_resolver=Depends(get_model_resolver),
     context_budget=Depends(get_context_budget),
     settings: Settings = Depends(get_settings),
+    rag_service: RagService = Depends(get_rag_service),
 ) -> ChatUseCase:
     return ChatUseCase(
         chatService=service,
@@ -149,4 +152,5 @@ async def get_chat_usecase(
         model_resolver=model_resolver,
         context_budget=context_budget,
         default_model=settings.chat_model,
+        rag_service=rag_service,
     )

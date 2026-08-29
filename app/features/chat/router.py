@@ -35,6 +35,7 @@ async def list_conversations(
                 id=conversation.id,
                 title=conversation.title,
                 created_at=conversation.created_at,
+                document_id=conversation.document_id,
                 last_message=last_message,
             )
             for conversation, last_message in rows
@@ -65,6 +66,7 @@ async def get_conversation(
         user_id=conversation.user_id,
         title=conversation.title,
         created_at=conversation.created_at,
+        document_id=conversation.document_id,
         messages=[
             MessageResponse(
                 id=message.id,
@@ -88,6 +90,7 @@ async def chat(
         conversation_id=req.conversation_id,
         message=req.message,
         user_id=user.id,
+        document_id=req.document_id,
     )
 
     return answer
@@ -104,6 +107,7 @@ async def stream_chat(
             conversation_id=req.conversation_id,
             message=req.message,
             user_id=user.id,
+            document_id=req.document_id,
         ),
         media_type="text/event-stream",
         headers={

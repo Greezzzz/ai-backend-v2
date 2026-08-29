@@ -14,9 +14,14 @@ class ConversationRepository:
         self,
         title: str,
         user_id: int,
+        document_id: int | None = None,
     ) -> Conversation:
 
-        conversation = Conversation(title=title, user_id=user_id)
+        conversation = Conversation(
+            title=title,
+            user_id=user_id,
+            document_id=document_id,
+        )
 
         self.session.add(conversation)
 

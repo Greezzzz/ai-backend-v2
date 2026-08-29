@@ -5,6 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database.base import Base
 from app.features.auth.model import User
+from app.features.rag.model import Document
 
 
 class Conversation(Base):
@@ -20,12 +21,20 @@ class Conversation(Base):
 
     title: Mapped[str] = mapped_column(String(255))
 
+    document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documents.id"),
+        nullable=True,
+        index=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
     )
 
     user: Mapped[User] = relationship()
+
+    document: Mapped[Document | None] = relationship()
 
     messages: Mapped[list[Message]] = relationship(
         back_populates="conversation",

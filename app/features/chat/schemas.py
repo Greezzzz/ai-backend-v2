@@ -12,6 +12,10 @@ class ChatRequest(BaseModel):
         default=None,
         description="Conversation ID for the chat. If not provided, a new conversation will be created.",
     )
+    document_id: int | None = Field(
+        default=None,
+        description="Document ID (RAG) untuk menjawab berdasarkan dokumen milik user.",
+    )
 
 
 class ChatResponse(BaseModel):
@@ -24,6 +28,10 @@ class ConversationSummary(BaseModel):
     id: int
     title: str
     created_at: datetime
+    document_id: int | None = Field(
+        default=None,
+        description="ID dokumen (RAG) yang terikat ke percakapan, kalau ada.",
+    )
     last_message: str | None = Field(
         default=None,
         description="Preview pesan terakhir dalam percakapan.",
@@ -47,4 +55,8 @@ class ConversationDetailResponse(BaseModel):
     user_id: int
     title: str
     created_at: datetime
+    document_id: int | None = Field(
+        default=None,
+        description="ID dokumen (RAG) yang terikat ke percakapan, kalau ada.",
+    )
     messages: list[MessageResponse]

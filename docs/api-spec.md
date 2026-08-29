@@ -121,10 +121,14 @@ Body:
 ```json
 {
   "message": "Halo, apa itu RAG?",
-  "conversation_id": null
+  "conversation_id": null,
+  "document_id": null
 }
 ```
 - `message`: 3–1000 karakter. `conversation_id`: opsional; `null`/tidak ada → buat percakapan baru.
+- `document_id`: opsional; id dokumen (RAG) milik user. Kalau diisi saat **membuat
+  percakapan baru**, dokumen **terikat ke percakapan** — pesan berikutnya di
+  percakapan yang sama otomatis memakai dokumen itu, klien tidak perlu kirim ulang.
 
 Response `200`:
 ```json
@@ -184,18 +188,22 @@ Response `200` (urut terbaru dulu, max 50):
       "id": 12,
       "title": "Halo, apa itu RAG?",
       "created_at": "2026-08-27T10:00:00Z",
+      "document_id": 3,
       "last_message": "RAG adalah Retrieval-Augmented Generation..."
     },
     {
       "id": 11,
       "title": "Pesan pertama",
       "created_at": "2026-08-26T09:00:00Z",
+      "document_id": null,
       "last_message": "Mock pesan pertama"
     }
   ]
 }
 ```
 - `last_message`: preview pesan terakhir (bisa `null` kalau percakapan kosong).
+- `document_id`: dokumen (RAG) yang terikat ke percakapan (`null` kalau tidak ada).
+  Klien bisa pakai ini saat membuka percakapan lama untuk tahu dokumen-nya.
 
 ### 2.4 Detail percakapan — `GET /api/chat/conversations/{id}` (auth)
 
@@ -206,6 +214,7 @@ Response `200` — metadata + **seluruh riwayat pesan** (urut dari terlama):
   "user_id": 1,
   "title": "Halo, apa itu RAG?",
   "created_at": "2026-08-27T10:00:00Z",
+  "document_id": 3,
   "messages": [
     {
       "id": 100,
@@ -228,6 +237,50 @@ Response `200` — metadata + **seluruh riwayat pesan** (urut dari terlama):
 
 Errors:
 - `404 CONVERSATION_NOT_FOUND` — tidak ada / bukan milik user.
+
+---
+
+## 2b. RAG (dokumen)
+
+Auth: semua endpoint RAG butuh JWT. Dokumen **milik user** — user lain tidak bisa
+mengakses dokumen kamu.
+
+### 2b.1 Upload dokumen — `POST /api/rag/documents`
+
+Body:
+```json
+{
+  "title": "tentang-ceo",
+  "content": "Nama panggilan CEO kami adalah Grezz..."
+}
+```
+
+Response `200`:
+```json
+{ "document_id": 1 }
+```
+> Dokumen di-chunk, tiap chunk di-embed (OpenAI `text-embedding-3-small`), dan
+> disimpan ke pgvector.
+
+> **Keamanan**: konten dokumen diperlakukan sebagai **data tidak tepercaya**.
+> Saat dipakai di chat, konteks dokumen dibungkus tag `<context>...</context>`
+> dengan instruksi agar model tidak mengikuti instruksi di dalamnya (pertahanan
+> terhadap prompt injection via dokumen).
+
+### 2b.2 Detail dokumen — `GET /api/rag/documents/{id}`
+
+Response `200`:
+```json
+{
+  "id": 1,
+  "user_id": 525,
+  "title": "tentang-ceo",
+  "created_at": "2026-08-28T12:00:00Z"
+}
+```
+
+Errors:
+- `404 VALIDATION_ERROR` — dokumen tidak ada / bukan milik user.
 
 ---
 

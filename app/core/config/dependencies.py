@@ -1,5 +1,5 @@
-from fastapi import Request
 import redis.asyncio as redis
+from fastapi import Request
 
 from app.core.resources import Resources
 

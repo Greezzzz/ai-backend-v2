@@ -58,11 +58,12 @@ class Settings(BaseSettings):
     # Redis (queue + cache). Default untuk dev; ganti sesuai environment.
     redis_url: str = "redis://localhost:6379/0"
 
-    # Embedding (RAG) via Ollama lokal — gratis, tanpa API key.
-    # DeepSeek tidak punya endpoint embedding & kita tidak punya key OpenAI.
-    embedding_base_url: str = "http://localhost:11434"
-    embedding_model: str = "nomic-embed-text"
-    embedding_dim: int = 768
+    # Embedding (RAG) via OpenAI — text-embedding-3-small (1536 dim).
+    # DeepSeek tidak punya endpoint embedding.
+    embedding_api_key: str = ""
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dim: int = 1536
+    embedding_base_url: str | None = None
 
     # OpenTelemetry (tracing). Default mati; nyalakan dengan OTEL_ENABLED=true
     # dan arahkan OTEL_EXPORTER_OTLP_ENDPOINT ke collector (Jaeger, dsb).
@@ -140,9 +141,10 @@ class Settings(BaseSettings):
     @property
     def embedding(self) -> EmbeddingSettings:
         return EmbeddingSettings(
-            base_url=self.embedding_base_url,
+            api_key=self.embedding_api_key,
             model=self.embedding_model,
             dim=self.embedding_dim,
+            base_url=self.embedding_base_url,
         )
 
     @property
