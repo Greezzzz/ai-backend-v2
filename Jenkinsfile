@@ -53,11 +53,18 @@ pipeline {
         stage('Health Check') {
             steps{
                 sh '''
-                    echo "Checking our server..."
-
-                    curl -sf http://localhost:8000/health || exit 1
-
-                    echo "Server is running"
+                    echo "Waiting for server to be ready..."
+                    # Coba sampai 5x, jeda 2s (max ~10s)
+                    for i in $(seq 1 5); do
+                        if curl -sf http://localhost:8000/health; then
+                            echo "Server is running"
+                            exit 0
+                        fi
+                        echo "attempt $i: not ready yet..."
+                        sleep 2
+                    done
+                    echo "Server did not become healthy in time"
+                    exit 1
                 '''
             }
         }
