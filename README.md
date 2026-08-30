@@ -65,30 +65,134 @@ uv run mypy .
 
 ## Deploy (manual ke homelab / server docker)
 
-Build image app + jalankan semua service via compose production:
+Build image app + jalankan semua service via compose production.
+
+### Prasyarat (di server)
+
+- Docker + Docker Compose terinstall.
+- Project sudah di-clone (kalau belum: `git clone ... && git pull` — pastikan
+  `Dockerfile` sudah ada, tidak kosong).
+- Port bebas: `8000, 5432, 6379, 16686, 4318, 4317, 9090, 3000`.
+
+### Langkah 1 — Masuk ke project & pastikan terbaru
 
 ```bash
-# 1. build & verifikasi image (lokal dulu)
-docker build -t ai-backend-v2:test .
-docker run --rm ai-backend-v2:test python -c "import app.main"  # perlu env vars
-
-# 2. di server (mis. /opt/ai-backend):
-#    - salin docker-compose.prod.yml + deploy/ (config jaeger/prometheus/grafana)
-#    - buat .env (salin .env.example, isi nilai PRODUKSI — lihat catatan di bawah)
-scp docker-compose.prod.yml deploy/ user@server:/opt/ai-backend/
-
-# 3. di server
-cd /opt/ai-backend
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml exec app alembic upgrade head
-
-# 4. cek
-curl http://localhost:8000/health
+cd /path/ke/ai-backend-v2
+git pull
 ```
 
-> **`.env` produksi**: isi `DB_HOST=postgres`, `DB_PORT=5432`,
-> `REDIS_URL=redis://redis:6379/0` (nama service compose, bukan localhost).
-> `API_KEY` di `deploy/prometheus-prod.yml` harus sama dengan `.env`.
+### Langkah 2 — Buat `.env` produksi
+
+```bash
+cp .env-example .env
+nano .env    # atau vim
+```
+
+Ubah nilai yang penting (perbedaan utama dari lokal: **nama service**, bukan
+`localhost`):
+
+```ini
+# LLM — isi key & model asli
+CHAT_API_KEY=sk-key-asli
+CHAT_MODEL=gpt-5-nano
+CHAT_BASE_URL=https://api.openai.com
+CHAT_TEMP=1                   # gpt-5: hanya default (1) yang didukung
+CHAT_TOKEN_CORRECTION=0       # gpt-5 tidak butuh koreksi 79 ala DeepSeek
+
+# DB — NAMA SERVICE, bukan localhost
+DB_HOST=postgres
+DB_PORT=5432
+
+# Auth — generate secret kuat
+JWT_SECRET_KEY=$(openssl rand -hex 32)
+
+# API key metrics — WAJIB sama dengan deploy/prometheus-prod.yml
+API_KEY=ganti-dengan-key-kuat
+
+# Redis — nama service
+REDIS_URL=redis://redis:6379/0
+
+# Embedding
+EMBEDDING_API_KEY=sk-key-asli
+
+# Tracing (opsional — false dulu)
+OTEL_ENABLED=false
+OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+```
+
+### Langkah 3 — Build & start semua service
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Ini build image app dan start: app, worker, postgres, redis, jaeger,
+prometheus, grafana. Cek status:
+
+```bash
+docker compose -f docker-compose.prod.yml ps
+```
+
+### Langkah 4 — Jalankan migrasi database
+
+DB di server masih kosong, jadi buat tabel:
+
+```bash
+docker compose -f docker-compose.prod.yml exec app alembic upgrade head
+```
+
+### Langkah 5 — Verifikasi
+
+```bash
+curl http://localhost:8000/health
+# → {"status": "ok"}
+
+# smoke test: register → login → chat
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","email":"test@example.com","password":"supersecret123"}'
+```
+
+### Langkah 6 — Perintah operasional
+
+```bash
+# log app
+docker compose -f docker-compose.prod.yml logs -f app
+
+# log worker
+docker compose -f docker-compose.prod.yml logs -f worker
+
+# restart setelah ubah .env
+docker compose -f docker-compose.prod.yml up -d
+
+# stop semua
+docker compose -f docker-compose.prod.yml down
+
+# reset total (HAPUS volume DB!)
+docker compose -f docker-compose.prod.yml down -v
+```
+
+### URL setelah deploy
+
+| Service | URL |
+|---------|-----|
+| App API | `http://<ip-homelab>:8000` |
+| API docs | `http://<ip-homelab>:8000/docs` |
+| Jaeger | `http://<ip-homelab>:16686` |
+| Prometheus | `http://<ip-homelab>:9090` |
+| Grafana | `http://<ip-homelab>:3000` (admin/admin) |
+
+### Debug kalau gagal — urutan cek
+
+1. `docker compose ... ps` — semua jalan?
+2. `docker compose ... logs app` — error app (biasanya `.env` kurang atau DB).
+3. `docker compose ... logs postgres` — postgres sehat?
+4. **Paling umum**: `.env` masih `localhost` bukan nama service → app tidak bisa
+   reach DB/Redis. Fix `.env`, lalu `docker compose ... up -d` (recreate app).
+
+> **Catatan**: `deploy/prometheus-prod.yml` punya `X-API-Key` hardcoded
+> (`masak-nasi-goreng`) — pastikan `API_KEY` di `.env` sama, atau Prometheus
+> dapat 401 di `/metrics`.
 > Worker jalan sebagai service terpisah (`python -m app.jobs.worker`) — image sama.
 
 ## Endpoint utama
