@@ -1,8 +1,8 @@
 import asyncio
 import time
 
-from app.core.rate_limiter.token_bucket import TokenBucketRateLimiter
 from app.core.config.rate_limit import RateLimiterSettings
+from app.core.rate_limiter.token_bucket import TokenBucketRateLimiter
 
 
 async def test_consume():

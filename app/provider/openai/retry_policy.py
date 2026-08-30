@@ -1,6 +1,7 @@
-from app.core.retry.policy import RetryPolicy
-from app.core.config.retry import RetrySettings
 import httpx
+
+from app.core.config.retry import RetrySettings
+from app.core.retry.policy import RetryPolicy
 
 
 class OpenAIRetryPolicy(RetryPolicy):

@@ -1,10 +1,10 @@
 import pytest
 
 from app.domain.model_profile import ModelProfile, ModelRegistry
+from app.domain.token_counter import TokenCounterRegistry
 from app.infrastructure.tokenizer.deepseek.v4.token_counter import (
     DeepSeekV4TokenCounter,
 )
-from app.domain.token_counter import TokenCounterRegistry
 
 
 def test_model_profile():

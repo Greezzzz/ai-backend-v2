@@ -1,9 +1,11 @@
-from app.core.resources import Resources
-from app.core.config.dependencies import get_resources
-from app.core.retry.policy import RetryPolicy
-from app.core.retry.executor import RetryExecutor
-from app.provider.openai.retry_policy import OpenAIRetryPolicy
 from fastapi import Depends
+
+from app.core.config.dependencies import get_resources
+from app.core.resources import Resources
+from app.core.retry.executor import RetryExecutor
+from app.core.retry.policy import RetryPolicy
+from app.provider.openai.retry_policy import OpenAIRetryPolicy
+
 
 def get_openai_retry(
     resources: Resources = Depends(get_resources),

@@ -5,10 +5,10 @@ A self-contained implementation for encoding/decoding DeepSeek-V4 chat messages
 with tool calling, thinking mode, and quick instruction task support.
 """
 
-from typing import Any, Dict, List, Union, Optional, Tuple
 import copy
 import json
 import re
+from typing import Any
 
 # ============================================================
 # Special Tokens
@@ -62,7 +62,7 @@ tool_output_template: str = "<tool_result>{content}</tool_result>"
 # Reasoning effort levels. In thinking mode, the prompt for the selected level is
 # prepended at the very beginning of the conversation. `low` is the default and
 # adds nothing.
-REASONING_EFFORT_PROMPTS: Dict[str, str] = {
+REASONING_EFFORT_PROMPTS: dict[str, str] = {
     "low": "",
     "high": (
         "Reasoning Effort: Absolute maximum with no shortcuts permitted.\n"
@@ -147,7 +147,7 @@ def tool_calls_to_openai_format(tool_calls):
     ]
 
 
-def encode_arguments_to_dsml(tool_call: Dict[str, str]) -> str:
+def encode_arguments_to_dsml(tool_call: dict[str, str]) -> str:
     """
     Encode tool call arguments into DSML parameter format.
 
@@ -162,7 +162,7 @@ def encode_arguments_to_dsml(tool_call: Dict[str, str]) -> str:
 
     try:
         arguments = json.loads(tool_call["arguments"])
-    except Exception as err:
+    except Exception:
         arguments = {"arguments": tool_call["arguments"]}
 
     for k, v in arguments.items():
@@ -178,8 +178,8 @@ def encode_arguments_to_dsml(tool_call: Dict[str, str]) -> str:
 
 
 def decode_dsml_to_arguments(
-    tool_name: str, tool_args: Dict[str, Tuple[str, str]]
-) -> Dict[str, str]:
+    tool_name: str, tool_args: dict[str, tuple[str, str]]
+) -> dict[str, str]:
     """
     Decode DSML parameters back to a tool call dict.
 
@@ -206,7 +206,7 @@ def decode_dsml_to_arguments(
     return dict(name=tool_name, arguments=tool_args_json)
 
 
-def render_tools(tools: List[Dict[str, Union[str, Dict[str, Any]]]]) -> str:
+def render_tools(tools: list[dict[str, str | dict[str, Any]]]) -> str:
     """
     Render tool schemas into the system prompt format.
 
@@ -226,7 +226,7 @@ def render_tools(tools: List[Dict[str, Union[str, Dict[str, Any]]]]) -> str:
     )
 
 
-def find_last_user_index(messages: List[Dict[str, Any]]) -> int:
+def find_last_user_index(messages: list[dict[str, Any]]) -> int:
     """Find the index of the last user/developer message."""
     last_user_index = -1
     for idx in range(len(messages) - 1, -1, -1):
@@ -243,10 +243,10 @@ def find_last_user_index(messages: List[Dict[str, Any]]) -> int:
 
 def render_message(
     index: int,
-    messages: List[Dict[str, Any]],
+    messages: list[dict[str, Any]],
     thinking_mode: str,
     drop_thinking: bool = True,
-    reasoning_effort: Optional[str] = None,
+    reasoning_effort: str | None = None,
 ) -> str:
     """
     Render a single message at the given index into its encoded string form.
@@ -437,9 +437,7 @@ def render_message(
     elif messages[index].get("role") in ["user", "developer"]:
         # Normal generation: append Assistant + thinking token
         prompt += ASSISTANT_SP_TOKEN
-        if not drop_thinking and thinking_mode == "thinking":
-            prompt += thinking_start_token
-        elif drop_thinking and thinking_mode == "thinking" and index >= last_user_idx:
+        if not drop_thinking and thinking_mode == "thinking" or drop_thinking and thinking_mode == "thinking" and index >= last_user_idx:
             prompt += thinking_start_token
         else:
             prompt += thinking_end_token
@@ -452,7 +450,7 @@ def render_message(
 # ============================================================
 
 
-def merge_tool_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def merge_tool_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Merge tool messages into the preceding user message using content_blocks format.
 
@@ -469,7 +467,7 @@ def merge_tool_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     Returns:
         Processed message list with tool messages merged into user messages.
     """
-    merged: List[Dict[str, Any]] = []
+    merged: list[dict[str, Any]] = []
 
     for msg in messages:
         msg = copy.deepcopy(msg)
@@ -523,8 +521,8 @@ def merge_tool_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def sort_tool_results_by_call_order(
-    messages: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """
     Sort tool_result blocks within user messages by the order of tool_calls
     in the preceding assistant message.
@@ -535,7 +533,7 @@ def sort_tool_results_by_call_order(
     Returns:
         Message list with sorted tool result blocks.
     """
-    last_tool_call_order: Dict[str, int] = {}
+    last_tool_call_order: dict[str, int] = {}
 
     for msg in messages:
         role = msg.get("role")
@@ -574,12 +572,12 @@ def sort_tool_results_by_call_order(
 
 
 def encode_messages(
-    messages: List[Dict[str, Any]],
+    messages: list[dict[str, Any]],
     thinking_mode: str,
-    context: Optional[List[Dict[str, Any]]] = None,
+    context: list[dict[str, Any]] | None = None,
     drop_thinking: bool = True,
     add_default_bos_token: bool = True,
-    reasoning_effort: Optional[str] = None,
+    reasoning_effort: str | None = None,
 ) -> str:
     """
     Encode a list of messages into the DeepSeek-V4 prompt format.
@@ -643,7 +641,7 @@ def encode_messages(
     return prompt
 
 
-def _drop_thinking_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _drop_thinking_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Drop reasoning_content and non-essential messages before the last user message.
 
@@ -676,8 +674,8 @@ def _drop_thinking_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, An
 
 
 def _read_until_stop(
-    index: int, text: str, stop: List[str]
-) -> Tuple[int, str, Optional[str]]:
+    index: int, text: str, stop: list[str]
+) -> tuple[int, str, str | None]:
     """
     Read text from index until one of the stop strings is found.
 
@@ -703,7 +701,7 @@ def _read_until_stop(
 
 def parse_tool_calls(
     index: int, text: str
-) -> Tuple[int, Optional[str], List[Dict[str, str]]]:
+) -> tuple[int, str | None, list[dict[str, str]]]:
     """
     Parse DSML tool calls from text starting at the given index.
 
@@ -715,7 +713,7 @@ def parse_tool_calls(
         Tuple of (new_index, last_stop_token, list_of_tool_call_dicts).
         Each tool call dict has "name" and "arguments" keys.
     """
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     stop_token = None
     tool_calls_end_token = f"</{dsml_token}{tool_calls_block_name}>"
 
@@ -743,7 +741,7 @@ def parse_tool_calls(
             raise ValueError(f"Tool name format error: '{tool_name_content}'")
         tool_name = p_tool_name[0]
 
-        tool_args: Dict[str, Tuple[str, str]] = {}
+        tool_args: dict[str, tuple[str, str]] = {}
         while stop_token == f"<{dsml_token}parameter":
             index, param_content, stop_token = _read_until_stop(
                 index, text, [f"/{dsml_token}parameter"]
@@ -776,7 +774,7 @@ def parse_tool_calls(
     return index, stop_token, tool_calls
 
 
-def parse_message_from_completion_text(text: str, thinking_mode: str) -> Dict[str, Any]:
+def parse_message_from_completion_text(text: str, thinking_mode: str) -> dict[str, Any]:
     """
     Parse a model completion text into a structured assistant message.
 

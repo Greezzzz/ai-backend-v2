@@ -8,6 +8,7 @@ from app.application.context.manager import ContextManager
 from app.application.context.result import ContextResult
 from app.core.exceptions.business import BusinessException
 from app.core.exceptions.error_codes import ErrorCode
+from app.core.logging.logger import logger
 from app.core.metrics.chat import chat_messages_sent_total
 from app.core.metrics.llm import llm_input_tokens_total, llm_output_tokens_total
 from app.domain.llm import ChatMessage
@@ -181,7 +182,7 @@ class ChatUseCase:
         document_id: int | None = None,
     ):
         try:
-            conversation, messages, context_result = await self._prepare_chat(
+            conversation, _, context_result = await self._prepare_chat(
                 conversation_id=conversation_id,
                 message=message,
                 user_id=user_id,
@@ -215,9 +216,12 @@ class ChatUseCase:
         """Streaming: yield event SSE. Pesan assistant disimpan setelah stream selesai.
 
         Format event:
-        - data: {"delta": "..."}   → potongan teks
-        - data: {"error": "..."}   → error di tengah stream
-        - data: [DONE]             → selesai
+        - data: {"conversation_id": N} → id percakapan (dikirim PERTAMA, supaya
+          klien langsung tahu id-nya walau stream nanti error)
+        - data: {"delta": "..."}        → potongan teks
+        - data: {"usage": {...}}        → token usage (sebelum [DONE])
+        - data: {"error": "..."}        → error di tengah stream
+        - data: [DONE]                  → selesai
         """
         conversation, messages, _ = await self._prepare_chat(
             conversation_id=conversation_id,
@@ -225,6 +229,8 @@ class ChatUseCase:
             user_id=user_id,
             document_id=document_id,
         )
+
+        yield f"data: {json.dumps({'conversation_id': conversation.id}, ensure_ascii=False)}\n\n"
 
         chunks: list[str] = []
 
@@ -236,7 +242,14 @@ class ChatUseCase:
         except Exception as e:
             await self.session.rollback()
             error_msg = str(e) or type(e).__name__
-            yield f"data: {json.dumps({'error': error_msg}, ensure_ascii=False)}\n\n"
+            details = getattr(e, "details", None)
+            logger.error(
+                "llm_stream_failed",
+                error=error_msg,
+                details=details,
+                exc_info=True,
+            )
+            yield f"data: {json.dumps({'error': error_msg, 'details': details}, ensure_ascii=False)}\n\n"
             return
 
         # Stream selesai → simpan user + assistant (teks penuh hasil akumulasi).

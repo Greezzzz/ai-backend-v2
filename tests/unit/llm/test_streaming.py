@@ -250,7 +250,7 @@ def test_build_payload_includes_temperature_and_max_tokens():
     payload = client._build_payload(request)
 
     assert payload["model"] == "deepseek-v4-flash"
-    assert payload["max_tokens"] == 2048
+    assert payload["max_completion_tokens"] == 2048
     assert payload["temperature"] == 0.3
     assert payload["messages"] == [{"role": "user", "content": "halo"}]
 
@@ -262,7 +262,7 @@ def test_build_payload_falls_back_to_settings():
 
     payload = client._build_payload(request)
 
-    assert payload["max_tokens"] == 4096
+    assert payload["max_completion_tokens"] == 4096
     assert payload["temperature"] == 0.7
 
 
@@ -278,5 +278,5 @@ def test_build_stream_payload_includes_temperature_and_max_tokens():
     payload = client._build_stream_payload(request)
 
     assert payload["stream"] is True
-    assert payload["max_tokens"] == 1000
+    assert payload["max_completion_tokens"] == 1000
     assert payload["temperature"] == 0.5

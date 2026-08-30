@@ -100,6 +100,9 @@ TokenCounterRegistry (domain/token_counter.py) → model → TokenCounter
   Reliability di `deploy/grafana-provisioning/dashboards/`.
 - **Metrik LLM detail**: `llm_error_total{error_type,model,provider}`
   (timeout/rate_limit/auth/provider) + `chat_messages_sent_total{role}`.
+- **Metrik RAG**: `rag_documents_total{model}`, `rag_chunks_total`,
+  `rag_retrieval_duration_seconds{top_k}`, `rag_retrieval_hits/misses_total`
+  (di `app/core/metrics/rag.py`); dashboard "RAG" di Grafana.
 
 ### 3.5 Exception & error contract
 

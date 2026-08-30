@@ -24,6 +24,19 @@ from app.core.retry.executor import RetryExecutor
 from app.domain.llm import LLMRequest, LLMResponse, TokenUsage
 
 
+async def _read_error_body(error: httpx.HTTPStatusError) -> str | None:
+    """Ambil response body dari error, aman untuk response streaming.
+
+    `http.stream()` menghasilkan response yang belum di-read — akses `.text`
+    langsung memicu `ResponseNotRead`. `aread()` dulu, lalu baca.
+    """
+    try:
+        await error.response.aread()
+        return error.response.text[:500]
+    except Exception:
+        return None
+
+
 class OpenAIClient:
 
     def __init__(
@@ -83,7 +96,13 @@ class OpenAIClient:
                     raise LLmAuthenticationException() from e
                 else:
                     self._inc_llm_error("provider")
-                    raise LLMProviderException() from e
+                    raise LLMProviderException(
+                        details={
+                            "model": self._settings.chat.model,
+                            "status_code": e.response.status_code,
+                            "response_body": await _read_error_body(e),
+                        }
+                    ) from e
             except Exception as e:
                 is_fail = True
                 self._inc_llm_error("provider")
@@ -126,6 +145,7 @@ class OpenAIClient:
         """
         start = time.monotonic()
         payload = self._build_stream_payload(request)
+        logger.info("Payload", payload=payload)
         self._last_usage = None
 
         logger.info("llm_stream_started", model=self._settings.chat.model)
@@ -175,7 +195,13 @@ class OpenAIClient:
                     raise LLmAuthenticationException() from e
                 else:
                     self._inc_llm_error("provider")
-                    raise LLMProviderException() from e
+                    raise LLMProviderException(
+                        details={
+                            "model": self._settings.chat.model,
+                            "status_code": e.response.status_code,
+                            "response_body": await _read_error_body(e),
+                        }
+                    ) from e
             except Exception as e:
                 self._inc_llm_error("provider")
                 raise LLMProviderException(
@@ -231,7 +257,7 @@ class OpenAIClient:
             "messages": [
                 {"role": msg.role, "content": msg.content} for msg in request.messages
             ],
-            "max_tokens": (
+            "max_completion_tokens": (
                 request.max_tokens
                 if request.max_tokens is not None
                 else self._settings.chat.max_output_tokens
@@ -311,7 +337,7 @@ class OpenAIClient:
             "messages": [
                 {"role": msg.role, "content": msg.content} for msg in request.messages
             ],
-            "max_tokens": (
+            "max_completion_tokens": (
                 request.max_tokens
                 if request.max_tokens is not None
                 else self._settings.chat.max_output_tokens

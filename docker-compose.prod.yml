@@ -1,0 +1,80 @@
+name: ai-backend-v2-prod
+
+# Compose production — deploy manual ke homelab.
+# Semua service di satu network → app akses postgres via `postgres`, redis via `redis`.
+
+services:
+  # App FastAPI — di-build dari Dockerfile.
+  app:
+    build: .
+    image: ai-backend-v2:latest
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+
+  # Worker RQ — image sama, command beda.
+  worker:
+    image: ai-backend-v2:latest
+    command: ["python", "-m", "app.jobs.worker"]
+    env_file: .env
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ai_backend_v2
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  jaeger:
+    image: jaegertracing/jaeger:latest
+    user: "0:0"
+    command:
+      - --config=/etc/jaeger/config.yml
+    volumes:
+      - ./deploy/jaeger-config.yml:/etc/jaeger/config.yml:ro
+      - jaeger-data:/badger
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+      - "4317:4317"
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./deploy/prometheus-prod.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./deploy/grafana-provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana-provisioning/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  pgdata:
+  jaeger-data:
+  prometheus-data:
+  grafana-data:

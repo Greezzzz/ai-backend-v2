@@ -1,7 +1,16 @@
+import time
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions.business import BusinessException
 from app.core.exceptions.error_codes import ErrorCode
+from app.core.metrics.rag import (
+    rag_chunks_total,
+    rag_documents_total,
+    rag_retrieval_duration_seconds,
+    rag_retrieval_hits_total,
+    rag_retrieval_misses_total,
+)
 from app.features.rag.chunking import chunk_text
 from app.features.rag.model import Document, DocumentChunk
 from app.features.rag.repository import RAGRepository
@@ -48,6 +57,9 @@ class RagService:
         )
         await self.session.commit()
 
+        rag_documents_total.labels(model=self.embedding_client._settings.model).inc()
+        rag_chunks_total.inc(len(chunks))
+
         return document.id
 
     async def get_document(
@@ -72,10 +84,23 @@ class RagService:
                 status_code=404,
             )
 
+        start = time.monotonic()
+
         [query_embedding] = await self.embedding_client.embed([question])
 
-        return await self.repository.search_chunks(
+        result = await self.repository.search_chunks(
             user_id=user_id,
+            document_id=document_id,
             query_embedding=query_embedding,
             top_k=top_k,
         )
+
+        rag_retrieval_duration_seconds.labels(top_k=top_k).observe(
+            time.monotonic() - start
+        )
+        rag_retrieval_hits_total.inc(len(result))
+
+        if len(result) == 0:
+            rag_retrieval_misses_total.inc()
+
+        return result

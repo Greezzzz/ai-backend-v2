@@ -4,7 +4,6 @@ from collections.abc import Callable
 from app.core.database.config import DatabaseSettings
 from app.core.database.engine import create_engine
 from app.core.database.session import create_session_factory
-from app.features.job.model import Job
 from app.features.job.repository import JobRepository
 
 

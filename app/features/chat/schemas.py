@@ -7,7 +7,7 @@ from app.domain.llm import LLMResponse
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(max_length=1000, min_length=3, description="User prompt")
+    message: str = Field(max_length=1000, min_length=1, description="User prompt")
     conversation_id: int | None = Field(
         default=None,
         description="Conversation ID for the chat. If not provided, a new conversation will be created.",

@@ -1,9 +1,8 @@
 from dataclasses import dataclass
 
-
 from app.domain.model_profile import ModelProfile, ModelRegistry
-from app.domain.token_counter import TokenCounterRegistry
 from app.domain.token import TokenCounterProtocol
+from app.domain.token_counter import TokenCounterRegistry
 
 
 @dataclass(frozen=True)

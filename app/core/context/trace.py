@@ -3,7 +3,6 @@ from uuid import uuid4
 
 from opentelemetry import trace as otel_trace
 
-
 _TRACE_ID: ContextVar[str | None] = ContextVar(
     "trace_id",
     default=None

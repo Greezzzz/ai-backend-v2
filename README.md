@@ -63,6 +63,34 @@ uv run ruff check .
 uv run mypy .
 ```
 
+## Deploy (manual ke homelab / server docker)
+
+Build image app + jalankan semua service via compose production:
+
+```bash
+# 1. build & verifikasi image (lokal dulu)
+docker build -t ai-backend-v2:test .
+docker run --rm ai-backend-v2:test python -c "import app.main"  # perlu env vars
+
+# 2. di server (mis. /opt/ai-backend):
+#    - salin docker-compose.prod.yml + deploy/ (config jaeger/prometheus/grafana)
+#    - buat .env (salin .env.example, isi nilai PRODUKSI — lihat catatan di bawah)
+scp docker-compose.prod.yml deploy/ user@server:/opt/ai-backend/
+
+# 3. di server
+cd /opt/ai-backend
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec app alembic upgrade head
+
+# 4. cek
+curl http://localhost:8000/health
+```
+
+> **`.env` produksi**: isi `DB_HOST=postgres`, `DB_PORT=5432`,
+> `REDIS_URL=redis://redis:6379/0` (nama service compose, bukan localhost).
+> `API_KEY` di `deploy/prometheus-prod.yml` harus sama dengan `.env`.
+> Worker jalan sebagai service terpisah (`python -m app.jobs.worker`) — image sama.
+
 ## Endpoint utama
 
 | Method | Path | Fungsi |

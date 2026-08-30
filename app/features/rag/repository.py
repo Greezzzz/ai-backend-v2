@@ -52,17 +52,22 @@ class RAGRepository:
     async def search_chunks(
         self,
         user_id: int,
+        document_id: int,
         query_embedding: list[float],
         top_k: int = 3,
     ) -> list[DocumentChunk]:
         """Cari chunk paling relevan via cosine distance pgvector (`<=>`).
 
-        Hanya chunk milik user (join Document + filter user_id).
+        Scoped ke SATU dokumen (document_id) + ownership (user_id) — jadi
+        retrieval tidak mengambil chunk dari dokumen lain milik user yang sama.
         """
         result = await self.session.execute(
             select(DocumentChunk)
             .join(Document, DocumentChunk.document_id == Document.id)
-            .where(Document.user_id == user_id)
+            .where(
+                Document.id == document_id,
+                Document.user_id == user_id,
+            )
             .order_by(DocumentChunk.embedding.cosine_distance(query_embedding))
             .limit(top_k)
         )

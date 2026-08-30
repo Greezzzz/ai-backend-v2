@@ -1,0 +1,17 @@
+# Prometheus scrape config PRODUCTION.
+#
+# Berbeda dari dev: target pakai nama service compose (`app:8000`), bukan
+# `host.docker.internal` — karena semua jalan di network compose yang sama.
+#
+# /metrics dilindungi X-API-Key — nilai harus sama dengan API_KEY di .env.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "ai-backend-v2"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["app:8000"]
+    http_headers:
+      X-API-Key:
+        values: ["masak-nasi-goreng"]

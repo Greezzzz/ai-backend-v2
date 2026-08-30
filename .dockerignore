@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[oc]
+.venv/
+venv/
+
+# Env & secrets (jangan masuk image)
+.env
+.env.*
+
+# Test & tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Git & CI
+.git/
+.gitignore
+
+# Docs & belajar (bukan bagian runtime)
+docs/
+learn.md
+grafana.md
+PLAN.md
+roadmap.md
+goals.md
+*.md
+practice/
+
+# Konfigurasi infra (dipakai compose, bukan image)
+deploy/
+docker-compose*.yml

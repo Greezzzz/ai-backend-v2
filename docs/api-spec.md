@@ -161,6 +161,8 @@ Body sama dengan 2.1. Response: **SSE** (`text/event-stream`).
 
 Format event (setiap event diakhiri `\n\n`):
 ```
+data: {"conversation_id": 12}
+
 data: {"delta": "RAG adalah "}
 
 data: {"delta": "Retrieval-Augmented "}
@@ -172,6 +174,9 @@ data: {"usage": {"input_tokens": 123, "output_tokens": 45, "total_tokens": 168}}
 data: [DONE]
 ```
 
+- `data: {"conversation_id": N}` — **event PERTAMA**; id percakapan. Dikirim
+  sebelum delta supaya klien langsung tahu id-nya (walau stream nanti error,
+  klien tetap bisa lanjut chat dengan id ini).
 - `data: {"delta": "..."}` — potongan teks jawaban.
 - `data: {"usage": {...}}` — token usage seluruh request (muncul sebelum `[DONE]`;
   bisa tidak ada kalau stream terputus).

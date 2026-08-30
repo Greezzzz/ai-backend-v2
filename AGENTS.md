@@ -43,6 +43,19 @@ Status roadmap saat ini:
   berikutnya otomatis memakai dokumen tersimpan (klien tidak perlu kirim ulang).
   `document_id` di-expose di list & detail conversation (klien tahu dokumen
   percakapan lama saat reopen).
+  **RAG observability**: metrik `rag_documents_total`, `rag_chunks_total`,
+  `rag_retrieval_duration_seconds`, `rag_retrieval_hits/misses_total`
+  (`app/core/metrics/rag.py`); dashboard Grafana "RAG" auto-provision.
+  **Bug fix**: `search_chunks` scoped ke `document_id` + `user_id` (bukan cuma
+  user) — retrieval tidak lagi bocor chunk dari dokumen lain milik user yang
+  sama.
+- **Deploy foundation (Fase J, manual)**: `Dockerfile` multi-stage uv (satu image
+  untuk app + worker), `docker-compose.prod.yml` (app build + worker + infra),
+  `deploy/prometheus-prod.yml` (target `app:8000`), `.dockerignore`, flow `.env`
+  manual di server (nilai prod: `DB_HOST=postgres`, `REDIS_URL=redis://redis:6379/0`).
+  Jenkins pipeline = berikutnya. Catatan: `max_completion_tokens` dipakai di
+  payload (bukan `max_tokens`) — cocok gpt-5/o1, TIDAK cocok DeepSeek (pakai
+  `max_tokens`); kalau balik ke DeepSeek, perlu adaptasi per-model.
 - Fase berikutnya (PLAN.md): RAG lanjutan (multi-dokumen, hapus, evaluasi), dst.
 
 Dokumen kunci: `PLAN.md` (rencana fase A–L), `README.md` (setup/run),

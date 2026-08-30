@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+
 import httpx
 
 from app.core.config.settings import Settings

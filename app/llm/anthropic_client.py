@@ -28,6 +28,15 @@ _PROVIDER = "anthropic"
 _VERSION_HEADER = "2023-06-01"
 
 
+async def _read_error_body(error: httpx.HTTPStatusError) -> str | None:
+    """Ambil response body dari error, aman untuk response streaming."""
+    try:
+        await error.response.aread()
+        return error.response.text[:500]
+    except Exception:
+        return None
+
+
 class AnthropicClient:
 
     def __init__(
@@ -87,7 +96,13 @@ class AnthropicClient:
                     raise LLmAuthenticationException() from e
                 else:
                     self._inc_llm_error("provider")
-                    raise LLMProviderException() from e
+                    raise LLMProviderException(
+                        details={
+                            "model": self._settings.chat.model,
+                            "status_code": e.response.status_code,
+                            "response_body": await _read_error_body(e),
+                        }
+                    ) from e
             except Exception as e:
                 is_fail = True
                 self._inc_llm_error("provider")
@@ -160,7 +175,13 @@ class AnthropicClient:
                     raise LLmAuthenticationException() from e
                 else:
                     self._inc_llm_error("provider")
-                    raise LLMProviderException() from e
+                    raise LLMProviderException(
+                        details={
+                            "model": self._settings.chat.model,
+                            "status_code": e.response.status_code,
+                            "response_body": await _read_error_body(e),
+                        }
+                    ) from e
             except Exception as e:
                 self._inc_llm_error("provider")
                 raise LLMProviderException(
