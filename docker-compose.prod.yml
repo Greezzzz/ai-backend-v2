@@ -14,6 +14,12 @@ services:
     depends_on:
       - postgres
       - redis
+    # Log rotation Docker: max 10MB per file, simpan 3 file (total ~30MB).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Worker RQ — image sama, command beda.
   worker:
@@ -22,6 +28,11 @@ services:
     env_file: .env
     depends_on:
       - redis
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
