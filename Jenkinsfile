@@ -22,8 +22,7 @@ pipeline {
                     branches: [[name: '*/master']],
                     extensions: [],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/Greezzzz/ai-backend-v2.git',
-                        credentialsId: 'github-creds'
+                        url: 'https://github.com/Greezzzz/ai-backend-v2.git'
                     ]]
                 ])
             }
@@ -54,8 +53,8 @@ pipeline {
             steps{
                 sh '''
                     echo "Waiting for server to be ready..."
-                    # Coba sampai 5x, jeda 2s (max ~10s)
-                    for i in $(seq 1 5); do
+                    # Coba sampai 30x, jeda 2s (max ~60s)
+                    for i in $(seq 1 30); do
                         if curl -sf http://localhost:8000/health; then
                             echo "Server is running"
                             exit 0
