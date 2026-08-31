@@ -1,70 +1,90 @@
-// Jenkinsfile — pipeline deploy manual (homelab)
+// Jenkinsfile — pipeline deploy ke VPS via SSH + rsync
+//
+// Alur: checkout → test → rsync source ke VPS → build + deploy di VPS
+//
+// Prasyarat di Jenkins:
+//   1. Credential SSH ke VPS: Manage Jenkins → Credentials → "SSH Username
+//      with private key" (user + private key), id = "vps-ssh".
+//   2. Di VPS: /opt/apps/ai-backend/.env sudah dibuat manual (tidak di git,
+//      tidak di-rsync — jadi tidak pernah tertimpa).
+//   3. VPS sudah install docker + docker compose.
 
 pipeline {
     agent any
 
     triggers {
+        // Polling: cek repo tiap 5 menit; build kalau ada perubahan.
         pollSCM('H/5 * * * *')
     }
 
     environment {
-        COMPOSE_FILE = 'docker-compose.prod.yml'
-        ENV_SOURCE   = '/opt/ai-backend/.env'
-        IMAGE        = 'ai-backend-v2:latest'
+        VPS_USER = 'ubuntu'
+        VPS_HOST = '43.129.33.101'          // ganti dengan IP VPS
+        APP_DIR  = '/opt/apps/ai-backend'   // lokasi app + .env di VPS
+        COMPOSE  = 'docker-compose.prod.yml'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Clone repo PRIVATE — pakai credential "github-creds".
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/master']],
-                    extensions: [],
-                    userRemoteConfigs: [[
-                        url: 'https://github.com/Greezzzz/ai-backend-v2.git'
-                    ]]
-                ])
+                checkout scm
             }
         }
 
-        stage('Build image') {
+        stage('Test') {
             steps {
-                // Build image app (Dockerfile multi-stage uv).
-                sh 'docker build -t ${IMAGE} .'
+                // Test di Jenkins (perlu uv). Skip dulu kalau uv belum ada.
+                sh '''
+                    if command -v uv >/dev/null 2>&1; then
+                        uv sync --frozen --no-dev
+                        uv run pytest tests/unit -q
+                    else
+                        echo "uv tidak ditemukan — skip test"
+                    fi
+                '''
             }
         }
 
         stage('Deploy') {
             steps {
-                // .env produksi tidak ada di git — salin dari host.
-                sh 'cp ${ENV_SOURCE} .env'
+                sshagent(['grz-1-ssh']) {
+                    sh '''
+                        rsync -avz --delete \\
+                            --exclude='.git' \\
+                            --exclude='.venv' \\
+                            --exclude='.env' \\
+                            --exclude='.pytest_cache' \\
+                            ./ ${VPS_USER}@${VPS_HOST}:${APP_DIR}/
 
-                // Build ulang container yang pakai image baru, daemon.
-                sh 'docker compose -f ${COMPOSE_FILE} up -d'
-
-                // Migrasi DB (idempotent — aman dijalankan tiap deploy).
-                sh 'docker compose -f ${COMPOSE_FILE} exec -T app alembic upgrade head'
-
+                        ssh ${VPS_USER}@${VPS_HOST} "
+                            cd ${APP_DIR} &&
+                            docker compose -f ${COMPOSE} up -d --build &&
+                            docker compose -f ${COMPOSE} exec -T app alembic upgrade head
+                        "
+                    '''
+                }
             }
         }
 
         stage('Health Check') {
-            steps{
-                sh '''
-                    echo "Waiting for server to be ready..."
-                    # Coba sampai 30x, jeda 2s (max ~60s)
-                    for i in $(seq 1 30); do
-                        if curl -sf http://localhost:8000/health; then
-                            echo "Server is running"
-                            exit 0
-                        fi
-                        echo "attempt $i: not ready yet..."
-                        sleep 2
-                    done
-                    echo "Server did not become healthy in time"
-                    exit 1
-                '''
+            steps {
+                sshagent(['grz-1-ssh']) {
+                    sh '''
+                        ssh ${VPS_USER}@${VPS_HOST} "
+                            echo 'Waiting for server...'
+                            for i in \$(seq 1 30); do
+                                if curl -sf http://localhost:8000/health; then
+                                    echo 'Server is running'
+                                    exit 0
+                                fi
+                                echo \"attempt \$i: not ready yet...\"
+                                sleep 2
+                            done
+                            echo 'Server did not become healthy in time'
+                            exit 1
+                        "
+                    '''
+                }
             }
         }
     }
