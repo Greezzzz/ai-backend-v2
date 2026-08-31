@@ -70,19 +70,21 @@ pipeline {
             steps {
                 sshagent(['grz-1-ssh']) {
                     sh '''
-                        ssh ${VPS_USER}@${VPS_HOST} "
+                        # Heredoc single-quoted: remote bash terima script apa adanya,
+                        # tidak ada mangling $ oleh shell lokal/Jenkins.
+                        ssh ${VPS_USER}@${VPS_HOST} bash -s <<'EOF'
                             echo 'Waiting for server...'
-                            for i in \$(seq 1 30); do
+                            for i in $(seq 1 30); do
                                 if curl -sf http://localhost:8000/health; then
                                     echo 'Server is running'
                                     exit 0
                                 fi
-                                echo \"attempt \$i: not ready yet...\"
+                                echo "attempt $i: not ready yet..."
                                 sleep 2
                             done
                             echo 'Server did not become healthy in time'
                             exit 1
-                        "
+EOF
                     '''
                 }
             }
