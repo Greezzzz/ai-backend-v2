@@ -1,26 +1,14 @@
-// Jenkinsfile — pipeline deploy ke VPS via SSH + rsync
-//
-// Alur: checkout → test → rsync source ke VPS → build + deploy di VPS
-//
-// Prasyarat di Jenkins:
-//   1. Credential SSH ke VPS: Manage Jenkins → Credentials → "SSH Username
-//      with private key" (user + private key), id = "vps-ssh".
-//   2. Di VPS: /opt/apps/ai-backend/.env sudah dibuat manual (tidak di git,
-//      tidak di-rsync — jadi tidak pernah tertimpa).
-//   3. VPS sudah install docker + docker compose.
-
 pipeline {
     agent any
 
     triggers {
-        // Polling: cek repo tiap 5 menit; build kalau ada perubahan.
         pollSCM('H/5 * * * *')
     }
 
     environment {
         VPS_USER = 'ubuntu'
-        VPS_HOST = '43.129.33.101'          // ganti dengan IP VPS
-        APP_DIR  = '/opt/apps/ai-backend'   // lokasi app + .env di VPS
+        VPS_HOST = '43.129.33.101'
+        APP_DIR  = '/opt/apps/ai-backend'
         COMPOSE  = 'docker-compose.prod.yml'
     }
 
@@ -33,7 +21,6 @@ pipeline {
 
         stage('Test') {
             steps {
-                // Test di Jenkins (perlu uv). Skip dulu kalau uv belum ada.
                 sh '''
                     if command -v uv >/dev/null 2>&1; then
                         uv sync --frozen --no-dev

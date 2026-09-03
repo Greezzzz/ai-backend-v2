@@ -224,6 +224,67 @@ docker compose -f docker-compose.prod.yml up -d prometheus
 > Alternatif tanpa hapus: biarkan — Prometheus otomatis membersihkan data
 > lebih lama dari `retention` (default 15 hari).
 
+### Troubleshooting: `password authentication failed for user "postgres"`
+
+Error ini muncul saat app/alembic tidak bisa login ke postgres, padahal
+`.env` sudah benar (`DB_PASSWORD` sesuai). Penyebabnya hampir selalu:
+
+**`POSTGRES_PASSWORD` di compose HANYA dipakai saat volume postgres pertama
+kali dibuat.** Setelah volume ada, password yang tersimpan di dalam volume
+itulah yang berlaku — mengubah env compose/`.env` tidak mengubah password
+yang tersimpan.
+
+Jadi kalau volume pernah dibuat dari state dengan password berbeda (mis. ada
+container lain yang sempat init volume, atau volume di-reset dengan env beda),
+app akan ditolak walau `.env` sudah `postgres`.
+
+**Cek dulu** — apakah password yang dipakai app == password tersimpan:
+
+```bash
+# password yang dipakai app
+docker exec ai-backend-v2-prod-app-1 printenv DB_PASSWORD
+
+# password tersimpan di volume (lewat socket trust di dalam container)
+docker compose -f docker-compose.prod.yml exec postgres psql -U postgres -d ai_backend_v2 -c 'select 1'
+```
+
+**Fix cepat (tanpa hapus data)** — set ulang password user `postgres` di
+container berjalan, supaya sama dengan `.env`:
+
+```bash
+docker compose -f docker-compose.prod.yml exec postgres psql -U postgres -d ai_backend_v2 \
+  -c "ALTER USER postgres PASSWORD 'postgres';"
+```
+
+lalu jalankan migrasi lagi:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T app alembic upgrade head
+```
+
+**Fix permanen** — pakai password kuat & satu sumber, jangan `postgres`:
+
+1. Generate password: `openssl rand -hex 24`
+2. Isi `DB_PASSWORD=<password>` di `.env` server, dan ubah
+   `docker-compose.prod.yml` supaya `POSTGRES_PASSWORD` membaca dari `.env`:
+   ```yaml
+   environment:
+     POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD di .env}
+   ```
+3. Reset volume postgres sekali (data hilang — pastikan DB kosong / siap
+   dibuang):
+   ```bash
+   docker compose -f docker-compose.prod.yml down
+   docker volume rm ai-backend-v2-prod_pgdata
+   docker compose -f docker-compose.prod.yml up -d
+   docker compose -f docker-compose.prod.yml exec -T app alembic upgrade head
+   ```
+
+> Tes `psql` lewat socket di dalam container **bukan** bukti password benar —
+> pg_hba memakai `trust` untuk koneksi local (socket). App konek lewat TCP
+> dari container lain yang kena aturan `scram-sha-256`, jadi yang menentukan
+> adalah password tersimpan di volume.
+
 ### URL setelah deploy
 
 | Service | URL |
