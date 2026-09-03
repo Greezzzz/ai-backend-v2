@@ -10,7 +10,11 @@ from app.core.exceptions.business import BusinessException
 from app.core.exceptions.error_codes import ErrorCode
 from app.core.logging.logger import logger
 from app.core.metrics.chat import chat_messages_sent_total
-from app.core.metrics.llm import llm_input_tokens_total, llm_output_tokens_total
+from app.core.metrics.llm import (
+    llm_input_tokens_total,
+    llm_output_tokens_total,
+    llm_token_estimation_error,
+)
 from app.domain.llm import ChatMessage
 from app.domain.model_resolver import ModelResolver
 from app.features.chat.model import Conversation
@@ -57,6 +61,38 @@ class ChatUseCase:
 
     async def list_conversations(self, user_id: int):
         return await self.conversation_repository.list_by_user(user_id=user_id)
+
+    def _log_token_estimation(
+        self,
+        estimated_tokens: int | None,
+        actual_input_tokens: int | None,
+        conversation_id: int,
+    ) -> None:
+        """Bandingkan estimasi tokenizer lokal vs usage aktual provider.
+
+        Dicatat sebagai log terstruktur (satu baris per request) + histogram
+        Prometheus `llm_token_estimation_error` (aktual - estimasi) untuk
+        melihat akurasi `CHAT_TOKEN_CORRECTION` dalam jangka panjang.
+        """
+        if actual_input_tokens is None:
+            return
+
+        if estimated_tokens is not None:
+            error = actual_input_tokens - estimated_tokens
+            llm_token_estimation_error.labels(
+                model=self.default_model, provider="openai"
+            ).observe(error)
+        else:
+            error = None
+
+        logger.info(
+            "token_estimation",
+            conversation_id=conversation_id,
+            estimated_tokens=estimated_tokens,
+            actual_tokens=actual_input_tokens,
+            error=error,
+            model=self.default_model,
+        )
 
     async def _prepare_chat(
         self,
@@ -188,7 +224,20 @@ class ChatUseCase:
                 user_id=user_id,
                 document_id=document_id,
             )
-            llm_response = await self.chat_service.ask(context_result.messages)
+            llm_response = await self.chat_service.ask(
+                context_result.messages,
+                estimated_tokens=context_result.estimated_tokens,
+            )
+
+            self._log_token_estimation(
+                estimated_tokens=context_result.estimated_tokens,
+                actual_input_tokens=(
+                    llm_response.usage.input_tokens
+                    if llm_response.usage is not None
+                    else None
+                ),
+                conversation_id=conversation.id,
+            )
 
             await self._save_messages(
                 conversation=conversation,
@@ -223,7 +272,7 @@ class ChatUseCase:
         - data: {"error": "..."}        → error di tengah stream
         - data: [DONE]                  → selesai
         """
-        conversation, messages, _ = await self._prepare_chat(
+        conversation, messages, context_result = await self._prepare_chat(
             conversation_id=conversation_id,
             message=message,
             user_id=user_id,
@@ -235,10 +284,12 @@ class ChatUseCase:
         chunks: list[str] = []
 
         try:
-            async for delta in self.chat_service.stream_ask(messages):
+            async for delta in self.chat_service.stream_ask(
+                messages,
+                estimated_tokens=context_result.estimated_tokens,
+            ):
                 chunks.append(delta)
                 yield f"data: {json.dumps({'delta': delta}, ensure_ascii=False)}\n\n"
-
         except Exception as e:
             await self.session.rollback()
             error_msg = str(e) or type(e).__name__
@@ -276,6 +327,12 @@ class ChatUseCase:
             llm_output_tokens_total.labels(
                 model=self.default_model, provider="openai"
             ).inc(usage.output_tokens)
+
+            self._log_token_estimation(
+                estimated_tokens=context_result.estimated_tokens,
+                actual_input_tokens=usage.input_tokens,
+                conversation_id=conversation.id,
+            )
 
             yield f"data: {json.dumps({'usage': usage.model_dump()}, ensure_ascii=False)}\n\n"
 

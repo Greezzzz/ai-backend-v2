@@ -199,6 +199,17 @@ Dokumen kunci: `PLAN.md` (rencana fase A–L), `README.md` (setup/run),
   Health & Reliability — JSON + provider `dashboards.yml`). Metrik tambahan:
   `llm_error_total{error_type,model,provider}` (timeout/rate_limit/auth/provider)
   dan `chat_messages_sent_total{role}`.
+  **Token estimation observability**: `estimated_tokens` (tokenizer lokal di
+  ContextManager) vs `usage.input_tokens` aktual provider kini dibandingkan.
+  Estimasi mengalir `ChatUseCase → ChatService.ask/stream_ask → LLMRequest.estimated_tokens`
+  → di-set sebagai atribut span `llm.estimated.input_tokens` (di `instrument_llm_call`,
+  berdampingan `gen_ai.usage.input_tokens` aktual) → bandingkan per request di Jaeger.
+  `ChatUseCase._log_token_estimation` menulis log terstruktur `token_estimation`
+  (conversation_id, estimated_tokens, actual_tokens, error, model — trace_id
+  otomatis) + histogram Prometheus `llm_token_estimation_error` (aktual - estimasi;
+  positif = undercount). Dashboard "LLM & Tokens" punya panel quantile & avg error.
+  Catatan: detail per request TIDAK lewat Prometheus (anti high-cardinality) — lewat
+  Jaeger (span) atau log stdout.
 
 ## Hal yang sengaja TIDAK dilakukan (anti-over-engineering)
 

@@ -63,6 +63,35 @@ uv run ruff check .
 uv run mypy .
 ```
 
+## Logging — cara akses log
+
+Kita belum integrasi ke Sentry / log aggregator — log ditulis sebagai **JSON ke
+stdout** (setup: `app/core/logging/config.py`, formatter `JsonFormatter`), bukan
+ke file. Tiap baris = satu event, otomatis membawa `trace_id` (korelasi ke
+Jaeger, lihat `docs/learn/observability.md`).
+
+Cara lihat:
+
+- **Dev (host):** log muncul di terminal tempat uvicorn jalan
+  (`uv run python -m uvicorn app.main:app --reload`). Filter event:
+  ```bash
+  # event token_estimation saja (contoh filter event)
+  uv run python -m uvicorn app.main:app 2>&1 | grep '"event": "token_estimation"'
+  ```
+- **Docker (deploy):**
+  ```bash
+  # log app / worker
+  docker compose -f docker-compose.prod.yml logs -f app
+  docker compose -f docker-compose.prod.yml logs -f worker
+  ```
+- Karena stdout, log **tidak tersimpan permanen** — hilang saat proses/container
+  berhenti. Kalau butuh riwayat & pencarian terpusat, pasang log aggregator
+  (mis. Loki) atau Sentry (belum — lihat `PLAN.md`).
+
+> Format tiap baris JSON, contoh: `{"timestamps": ..., "level": "INFO",
+> "logger": "ai-backend", "event": "token_estimation", "trace_id": "...",
+> "conversation_id": 1, "estimated_tokens": ..., "actual_tokens": ...}`
+
 ## Deploy (manual ke homelab / server docker)
 
 Build image app + jalankan semua service via compose production.

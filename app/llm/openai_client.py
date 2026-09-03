@@ -65,6 +65,7 @@ class OpenAIClient:
             provider="openai",
             model=self._settings.chat.model,
             operation="chat",
+            estimated_tokens=request.estimated_tokens,
         ) as span:
             try:
                 payload = self._build_payload(request)
@@ -154,6 +155,7 @@ class OpenAIClient:
             provider="openai",
             model=self._settings.chat.model,
             operation="stream",
+            estimated_tokens=request.estimated_tokens,
         ):
             try:
                 await self._rate_limiter.acquire()

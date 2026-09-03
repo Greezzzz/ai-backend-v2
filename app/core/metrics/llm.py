@@ -46,3 +46,15 @@ llm_error_total = Counter(
         "provider"
     ]
 )
+
+# Selisih estimasi tokenizer lokal vs usage aktual provider (aktual - estimasi).
+# Positif = undercount (estimasi lebih kecil dari aktual), negatif = overcount.
+llm_token_estimation_error = Histogram(
+    "llm_token_estimation_error",
+    "Estimation error of input tokens (actual - estimated)",
+    [
+        "model",
+        "provider"
+    ],
+    buckets=[-512, -256, -128, -64, -32, 0, 32, 64, 128, 256, 512],
+)

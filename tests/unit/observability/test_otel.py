@@ -57,6 +57,35 @@ async def test_instrument_llm_call_sets_token_usage(span_exporter):
 
 
 @pytest.mark.asyncio
+async def test_instrument_llm_call_sets_estimated_tokens(span_exporter):
+    async with instrument_llm_call(
+        provider="openai",
+        model="gpt-4o",
+        operation="chat",
+        estimated_tokens=123,
+    ):
+        pass
+
+    spans = span_exporter.get_finished_spans()
+    span = spans[0]
+
+    assert span.attributes["llm.estimated.input_tokens"] == 123
+
+
+@pytest.mark.asyncio
+async def test_instrument_llm_call_omits_estimated_tokens_when_none(span_exporter):
+    async with instrument_llm_call(
+        provider="openai", model="gpt-4o", operation="chat"
+    ):
+        pass
+
+    spans = span_exporter.get_finished_spans()
+    span = spans[0]
+
+    assert "llm.estimated.input_tokens" not in span.attributes
+
+
+@pytest.mark.asyncio
 async def test_instrument_llm_call_marks_error(span_exporter):
     with pytest.raises(RuntimeError, match="boom"):
         async with instrument_llm_call(

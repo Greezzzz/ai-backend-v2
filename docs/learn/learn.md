@@ -97,6 +97,19 @@ Ini **sumber kebenaran identitas**: semua endpoint yang butuh user memakai
 `user.id` dari `get_current_user`, bukan dari body request. Jangan pernah
 percaya `user_id` yang dikirim klien.
 
+**Sebelum sampai ke router/auth**, tiap request lewat `RateLimitMiddleware`
+(dipasang di `app/main.py`, exclude `/metrics`):
+- Identity = **IP client** (`X-Forwarded-For` pertama kalau ada proxy, fallback
+  `request.client.host`) — method `_client_key()` di
+  `app/middleware/rate_limit.py`.
+- Limit diambil dari `.env`: `HTTP_RATE_LIMIT_REQUESTS_PER_MINUTE` (dibaca
+  `settings.http_rate_limit.requests_per_minute`).
+- Store: sliding window **in-memory** (`app/core/rate_limiter/http_store.py`) —
+  per proses app, hilang saat restart.
+- Kalau lewat → **429** `{code: "RATE_LIMIT_EXCEEDED"}` + header `Retry-After: 60`.
+- Ini **rate limit request dari client** — beda dengan rate limiter ke LLM
+  (lihat §5.4).
+
 ### 2.4 Chat biasa
 ```
 POST /api/chat/conversations  {message, conversation_id?, document_id?}
@@ -230,10 +243,13 @@ ModelProfile (context_window, max_output_tokens dari .env)
 Ini mencegah request melebihi context window model. History lama dibuang dulu,
 pesan terbaru selalu dipertahankan.
 
-### 5.4 Retry & rate limit
+### 5.4 Retry & rate limit (ke provider LLM)
 - `RetryExecutor` (`app/core/retry/`) — exponential backoff + jitter, kebijakan
   per provider (`app/provider/{openai,anthropic}/retry_policy.py`).
-- `RateLimiter` (`app/core/rate_limiter/`) — token bucket, membatasi panggilan LLM.
+- `RateLimiter` (`app/core/rate_limiter/limiter.py`) — **token bucket**, dipakai
+  INTERNAL di client LLM untuk membatasi panggilan keluar ke provider
+  (jangan dikelirukan dengan `RateLimitMiddleware` HTTP di §2.3 yang membatasi
+  request masuk dari client per IP).
 - Keduanya di-wrap di client: `chat()` = retry di sekitar rate-limited send.
   **Streaming: retry hanya sebelum stream mulai** (provider tidak bisa resume
   mid-stream).

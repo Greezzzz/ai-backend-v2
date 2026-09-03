@@ -12,19 +12,21 @@ class ChatService:
     ):
         self.client = client
 
-    async def ask(self, messages) -> LLMResponse:
+    async def ask(self, messages, estimated_tokens: int | None = None) -> LLMResponse:
 
         req: LLMRequest = LLMRequest(
             messages=messages,
+            estimated_tokens=estimated_tokens,
         )
 
         res: LLMResponse = await self.client.chat(req)
         return res
 
-    async def stream_ask(self, messages) -> AsyncIterator[str]:
+    async def stream_ask(self, messages, estimated_tokens: int | None = None) -> AsyncIterator[str]:
         """Streaming: yield delta teks dari client LLM."""
         req: LLMRequest = LLMRequest(
             messages=messages,
+            estimated_tokens=estimated_tokens,
         )
 
         async for delta in self.client.stream_chat(req):

@@ -21,22 +21,29 @@ async def instrument_llm_call(
     provider: str,
     model: str,
     operation: str,
+    estimated_tokens: int | None = None,
 ) -> AsyncIterator[trace.Span]:
     """Wrap satu panggilan LLM dalam span OTel.
 
     Span: `llm.{provider}.{operation}` dengan atribut provider/model; token
-    usage di-set oleh caller lewat `span` yang di-yield. Exception menandai
-    span error (`status` + `error.type`).
+    usage aktual di-set oleh caller lewat `span` yang di-yield (lihat
+    `_set_token_usage`). `estimated_tokens` (tokenizer lokal) ikut dicatat
+    sebagai atribut agar bisa dibandingkan dengan usage aktual di Jaeger.
+    Exception menandai span error (`status` + `error.type`).
     """
     tracer = get_tracer(_TRACER_NAME)
 
+    attributes = {
+        "llm.provider": provider,
+        "llm.model": model,
+        "gen_ai.request.model": model,
+    }
+    if estimated_tokens is not None:
+        attributes["llm.estimated.input_tokens"] = estimated_tokens
+
     with tracer.start_as_current_span(
         f"llm.{provider}.{operation}",
-        attributes={
-            "llm.provider": provider,
-            "llm.model": model,
-            "gen_ai.request.model": model,
-        },
+        attributes=attributes,
     ) as span:
         try:
             yield span
