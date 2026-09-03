@@ -59,7 +59,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "type": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -138,7 +139,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "type": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -217,7 +219,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "type": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -298,7 +301,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "type": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -411,7 +415,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "type": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -524,7 +529,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "type": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -543,7 +549,8 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "prometheus"
+                        "type": "prometheus",
+                        "uid": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
