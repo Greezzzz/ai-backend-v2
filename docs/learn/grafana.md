@@ -85,32 +85,7 @@ kemungkinan endpoint itu bermasalah (bukan trafik tinggi).
 
 ---
 
-## 4. Dashboard: Health & Reliability
-
-**Tujuan:** "Infra kita stabil?" — retry, rate limit, ketersediaan.
-
-| Panel | Query | Cerita |
-|-------|-------|--------|
-| Scrape target up | `up{job="ai-backend-v2"}` | **1 = Prometheus bisa reach app.** 0 = app mati/port beda. Cek ini dulu kalau semua panel kosong! |
-| Retry attempts | `sum(rate(retry_attempts_total[5m])) by (operation)` | Berapa kali kita coba ulang panggilan (LLM/embedding). Naik = provider tidak stabil. |
-| Retry exhausted | `sum(rate(retry_exhausted_total[5m])) by (operation)` | **Retry habis = request gagal total.** Ini yang bikin 5xx. |
-| Rate limiter tokens available | `rate_limiter_tokens_available` | Token bucket internal. **0 = semua request LLM antri/tertahan** (kita throttle diri sendiri). |
-| 4xx error rate | `sum(rate(http_request_total{status_code=~"4..",path!="/metrics"}[5m])) by (path)` | Error klien (404/401/400). Naik mendadak = klien bug atau ada yang salah panggil API. |
-
-**Cara baca:** urutan debug yang benar: **Scrape up → Retry exhausted → Rate
-limiter**. Kalau `up` = 0, semua panel lain tidak relevan.
-
-> **Datasource:** dashboard ini memakai datasource Prometheus dengan **UID
-> eksplisit** (`uid: prometheus`, lihat
-> `deploy/grafana-provisioning/datasources/prometheus.yml`). Kalau suatu saat
-> semua panel "No data" dan baru muncul setelah query dijalankan manual,
-> kemungkinan besar referensi UID datasource di dashboard tidak cocok dengan
-> UID yang ter-provision — samakan semua referensi ke `prometheus` lalu
-> restart grafana.
-
----
-
-## 5. Dashboard: RAG
+## 4. Dashboard: RAG
 
 **Tujuan:** "Fitur RAG kita bekerja dan berguna?" — visibility untuk subsistem
 terbaru.
@@ -130,7 +105,7 @@ tidak nyambung dengan isi dokumen. Bukan bug, tapi sinyal kualitas data
 
 ---
 
-## 6. Kalau semua panel kosong — urutan cek
+## 5. Kalau semua panel kosong — urutan cek
 
 1. **`docker compose ps`** — semua service jalan?
 2. **App jalan?** `curl -H "X-API-Key: <key>" localhost:8000/metrics` → ada output?
@@ -143,7 +118,7 @@ tidak nyambung dengan isi dokumen. Bukan bug, tapi sinyal kualitas data
 
 ---
 
-## 7. Menambah metrik/dashboard baru (pola cepat)
+## 6. Menambah metrik/dashboard baru (pola cepat)
 
 1. **Metrik**: buat file di `app/core/metrics/` (pola `Counter`/`Histogram`/`Gauge`),
    lalu `.inc()`/`.observe()` di titik yang relevan.

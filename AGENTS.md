@@ -196,7 +196,7 @@ Dokumen kunci: `PLAN.md` (rencana fase A–L), `README.md` (setup/run),
   `localhost:3000`. Catatan: field header di Prometheus 3.x adalah `http_headers`
   (bukan `http_config`/`headers`). **Dashboard Grafana auto-provision** via
   `deploy/grafana-provisioning/dashboards/` (3 board: API Overview, LLM & Tokens,
-  Health & Reliability — JSON + provider `dashboards.yml`). Metrik tambahan:
+  RAG — JSON + provider `dashboards.yml`). Metrik tambahan:
   `llm_error_total{error_type,model,provider}` (timeout/rate_limit/auth/provider)
   dan `chat_messages_sent_total{role}`.
   **Token estimation observability**: `estimated_tokens` (tokenizer lokal di

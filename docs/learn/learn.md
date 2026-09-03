@@ -378,8 +378,7 @@ cari di Jaeger pakai trace id dari log pasti ketemu.
 - Prometheus scrape `host.docker.internal:8000` (header key di
   `deploy/prometheus.yml`).
 - Grafana baca dari Prometheus, dashboard auto-provision
-  (`deploy/grafana-provisioning/dashboards/`): API Overview, LLM & Tokens,
-  Health & Reliability.
+  (`deploy/grafana-provisioning/dashboards/`): API Overview, LLM & Tokens, RAG.
 
 ---
 

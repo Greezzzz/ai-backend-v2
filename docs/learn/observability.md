@@ -182,7 +182,6 @@ di-mount ke `/var/lib/grafana/dashboards`, dan didaftarkan lewat
 |-----------|------|-------|
 | API Overview | `api-overview.json` | Request rate, error rate, latency per path |
 | LLM & Tokens | `llm-tokens.json` | Request LLM, token usage, token estimation error |
-| Health & Reliability | `health.json` | Scrape up, retry, rate limiter |
 | RAG | `rag.json` | Dokumen, chunk, retrieval hit rate |
 
 **Cara edit:** ubah JSON → `docker compose restart grafana` → dashboard
