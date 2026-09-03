@@ -8,6 +8,20 @@ from app.core.logging.logger import logger
 from app.core.metrics.http import http_request_duration_seconds, http_request_total
 
 
+def _route_label(request) -> str:
+    """Label path untuk metrik.
+
+    Pakai template route (mis. `/api/chat/conversations/{conversation_id}`)
+    supaya metrik tidak meledak oleh path tak dikenal dari scanner/bot —
+    semua request yang tidak match route apa pun dikelompokkan sebagai
+    `unmatched` (biasanya 404/405).
+    """
+    route = request.scope.get("route")
+    if route is not None:
+        return getattr(route, "path", None) or request.url.path
+    return "unmatched"
+
+
 class TraceMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(
@@ -44,16 +58,17 @@ class TraceMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
 
             duration = time.monotonic() - start
+            route_label = _route_label(request)
 
             http_request_total.labels(
                 method=request.method,
-                path=request.url.path,
+                path=route_label,
                 status_code=response.status_code
             ).inc()
 
             http_request_duration_seconds.labels(
                 method=request.method,
-                path=request.url.path
+                path=route_label
             ).observe(duration)
 
 
@@ -64,7 +79,7 @@ class TraceMiddleware(BaseHTTPMiddleware):
             logger.info(
                 "http_request_completed",
                 method=request.method,
-                path=request.url.path,
+                path=route_label,
                 status_code=response.status_code,
                 latency=round(latency,2),
             )
