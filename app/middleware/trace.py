@@ -47,11 +47,14 @@ class TraceMiddleware(BaseHTTPMiddleware):
         if span_context.is_valid and client_trace_id:
             span.set_attribute("client.trace_id", client_trace_id)
 
-        logger.info(
-            "http_request_started",
-            method=request.method,
-            path=request.url.path
-        )
+        is_metrics = request.url.path == "/metrics"
+
+        if not is_metrics:
+            logger.info(
+                "http_request_started",
+                method=request.method,
+                path=request.url.path
+            )
 
         try:
 
@@ -62,8 +65,8 @@ class TraceMiddleware(BaseHTTPMiddleware):
 
             # Tidak dicatat ke metrik HTTP: request yang tidak match route mana pun
             # (`unmatched` = noise scanner/bot) dan scrape `/metrics` sendiri (bukan
-            # trafik API). Log & tracing tetap jalan untuk request ini.
-            if route_label != "unmatched" and request.url.path != "/metrics":
+            # trafik API).
+            if route_label != "unmatched" and not is_metrics:
                 http_request_total.labels(
                     method=request.method,
                     path=route_label,
@@ -75,18 +78,20 @@ class TraceMiddleware(BaseHTTPMiddleware):
                     path=route_label
                 ).observe(duration)
 
-
             latency = (
                 time.monotonic() - start
             ) * 1000
 
-            logger.info(
-                "http_request_completed",
-                method=request.method,
-                path=route_label,
-                status_code=response.status_code,
-                latency=round(latency,2),
-            )
+            # Skip log request `/metrics` yang normal (scrape Prometheus tiap 15s
+            # = noise). Tetap log kalau ada yang salah (bukan 200).
+            if not is_metrics or response.status_code != 200:
+                logger.info(
+                    "http_request_completed",
+                    method=request.method,
+                    path=route_label,
+                    status_code=response.status_code,
+                    latency=round(latency,2),
+                )
 
             # X-Trace-Id = trace id server (OTel, sama dengan di Jaeger).
             # X-Client-Trace-Id = trace id dari klien (echo).

@@ -26,4 +26,6 @@ EXPOSE 8000
 
 # App: uvicorn. Worker pakai image sama dengan command berbeda:
 #   docker compose run worker python -m app.jobs.worker
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --no-access-log: matikan access log uvicorn (duplikasi log JSON http_request_*
+# dari TraceMiddleware, cuma noise terutama dari scrape /metrics tiap 15s).
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
