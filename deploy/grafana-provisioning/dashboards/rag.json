@@ -63,8 +63,8 @@
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
-                       "spec": {
-                       "expr": "sum(increase(rag_documents_total[24h]))"
+                      "spec": {
+                        "expr": "sum(increase(rag_documents_total[24h]))"
                       },
                       "version": "v0"
                     },
@@ -76,7 +76,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Jumlah dokumen yang di-upload ke RAG 24 jam terakhir.",
           "id": 1,
           "links": [],
           "title": "Documents uploaded (last 24h)",
@@ -142,8 +142,8 @@
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
-                       "spec": {
-                       "expr": "sum(increase(rag_chunks_total[24h]))"
+                      "spec": {
+                        "expr": "sum(increase(rag_chunks_total[24h]))"
                       },
                       "version": "v0"
                     },
@@ -155,7 +155,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Jumlah chunk teks yang di-embedding & disimpan 24 jam terakhir. Naik = dokumen besar.",
           "id": 2,
           "links": [],
           "title": "Chunks indexed (last 24h)",
@@ -234,7 +234,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Persentase retrieval yang menemukan chunk relevan. Rendah = pertanyaan di luar dokumen / kualitas embedding kurang.",
           "id": 3,
           "links": [],
           "title": "Retrieval hit rate (%)",
@@ -316,7 +316,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Frekuensi retrieval per detik (dipisah per top_k). Seberapa sering RAG dipakai di chat.",
           "id": 4,
           "links": [],
           "title": "Retrieval rate",
@@ -429,7 +429,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "95% retrieval selesai dalam X detik (embed query + cosine search). Lambat = embedding API/DB melambat.",
           "id": 5,
           "links": [],
           "title": "Retrieval P95 duration",
@@ -561,7 +561,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Retrieval yang menemukan chunk (hits) vs kosong (misses). Misses sering = pertanyaan di luar topik dokumen.",
           "id": 6,
           "links": [],
           "title": "Retrieval hits vs misses",

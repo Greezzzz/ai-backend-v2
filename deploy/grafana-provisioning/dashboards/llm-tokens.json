@@ -77,7 +77,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Laju request LLM per status (success/error). Status error = request LLM gagal total.",
           "id": 1,
           "links": [],
           "title": "LLM requests by status",
@@ -190,7 +190,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "95% request LLM selesai dalam X detik. Naik = model/provider sedang lambat.",
           "id": 2,
           "links": [],
           "title": "LLM P95 latency",
@@ -322,7 +322,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Laju pemakaian token input vs output — proksi biaya LLM. Input = konteks/history, output = jawaban.",
           "id": 3,
           "links": [],
           "title": "Token usage rate (in vs out)",
@@ -436,7 +436,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Output dibanding input (%). Normalnya bisa >100% karena jawaban bisa lebih panjang dari pertanyaan.",
           "id": 4,
           "links": [],
           "title": "Token ratio (out/in)",
@@ -518,7 +518,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Laju error LLM per jenis (timeout, rate_limit, auth, provider). rate_limit naik = kena batas provider; auth naik = API key salah.",
           "id": 5,
           "links": [],
           "title": "LLM errors by type",
@@ -632,7 +632,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Jumlah pesan chat (user + assistant) yang tersimpan 24 jam terakhir.",
           "id": 6,
           "links": [],
           "title": "Chat messages (last 24h)",

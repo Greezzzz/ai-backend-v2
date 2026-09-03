@@ -77,7 +77,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Laju request per detik per endpoint (path = template route). Endpoint mana yang paling dipakai? Naik/turunnya trafik.",
           "id": 1,
           "links": [],
           "title": "Request rate by path",
@@ -190,7 +190,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Laju error server (5xx) per endpoint. Naik = ada bug atau masalah infra di endpoint itu.",
           "id": 2,
           "links": [],
           "title": "Error rate by path (5xx)",
@@ -302,7 +302,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Persentase request yang gagal (5xx) dari total request. Ambang wajar di bawah ~1%.",
           "id": 3,
           "links": [],
           "title": "Error rate (%)",
@@ -385,7 +385,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "Volume request absolut 24 jam terakhir — untuk lihat tren harian.",
           "id": 4,
           "links": [],
           "title": "Total requests (last 24h)",
@@ -465,7 +465,7 @@
               "transformations": []
             }
           },
-          "description": "",
+          "description": "95% request di endpoint ini selesai dalam X detik. Endpoint lambat ketahuan di sini.",
           "id": 5,
           "links": [],
           "title": "P95 latency by path",
