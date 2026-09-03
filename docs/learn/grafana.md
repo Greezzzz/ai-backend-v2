@@ -64,7 +64,6 @@ kemungkinan endpoint itu bermasalah (bukan trafik tinggi).
 | LLM requests by status | `sum(rate(llm_request_total[5m])) by (status)` | Sukses vs error. Status `error` di sini = request LLM gagal total. |
 | LLM P95 latency | `histogram_quantile(0.95, sum(rate(llm_request_duration_seconds_bucket[5m])) by (le))` | Seberapa lambat model menjawab. Naik = model lagi berat/provider lambat. |
 | Token usage rate (in vs out) | `sum(rate(llm_input_tokens_total[5m]))` + `sum(rate(llm_output_tokens_total[5m]))` | **Ini proksi biaya kita.** Input = konteks/history, output = jawaban. |
-| Token ratio (out/in) | `sum(rate(llm_output_tokens_total[5m])) / sum(rate(llm_input_tokens_total[5m])) * 100` | Output dibanding input (%). Bisa >100% — itu normal kalau output > input. |
 | LLM errors by type | `sum(rate(llm_error_total[5m])) by (error_type)` | **Jenis error**: `timeout`, `rate_limit`, `auth`, `provider`. Rate limit naik = kita kena batas provider; auth naik = API key salah. |
 | Chat messages (last 24h) | `sum(increase(chat_messages_sent_total[24h]))` | Aktivitas chat riil 24 jam (user + assistant pesan disimpan). |
 | Token estimation error \|actual−estimated\| (p50/p95) | `histogram_quantile(0.5/0.95, sum(rate(llm_token_estimation_abs_error_bucket[5m])) by (le))` | **Besar selisih** antara estimasi input token (tokenizer lokal) vs aktual (dari usage provider), diambil nilai absolut. p50 = setengah request bedanya di bawah nilai ini. |
@@ -100,6 +99,14 @@ kemungkinan endpoint itu bermasalah (bukan trafik tinggi).
 
 **Cara baca:** urutan debug yang benar: **Scrape up → Retry exhausted → Rate
 limiter**. Kalau `up` = 0, semua panel lain tidak relevan.
+
+> **Datasource:** dashboard ini memakai datasource Prometheus dengan **UID
+> eksplisit** (`uid: prometheus`, lihat
+> `deploy/grafana-provisioning/datasources/prometheus.yml`). Kalau suatu saat
+> semua panel "No data" dan baru muncul setelah query dijalankan manual,
+> kemungkinan besar referensi UID datasource di dashboard tidak cocok dengan
+> UID yang ter-provision — samakan semua referensi ke `prometheus` lalu
+> restart grafana.
 
 ---
 

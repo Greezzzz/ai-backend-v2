@@ -59,7 +59,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -172,7 +172,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -285,7 +285,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -304,7 +304,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -404,89 +404,6 @@
           }
         }
       },
-      "panel-4": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "PBFA97CFB590B2093"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "editorMode": "code",
-                        "expr": "sum(rate(llm_output_tokens_total[5m])) / sum(rate(llm_input_tokens_total[5m])) * 100",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Output dibanding input (%). Normalnya bisa >100% karena jawaban bisa lebih panjang dari pertanyaan.",
-          "id": 4,
-          "links": [],
-          "title": "Token ratio (out/in)",
-          "vizConfig": {
-            "group": "stat",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "max": 100,
-                  "min": 0,
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      },
-                      {
-                        "color": "red",
-                        "value": 80
-                      }
-                    ]
-                  },
-                  "unit": "percent"
-                },
-                "overrides": []
-              },
-              "options": {
-                "colorMode": "value",
-                "graphMode": "area",
-                "justifyMode": "auto",
-                "orientation": "auto",
-                "percentChangeColorMode": "standard",
-                "reduceOptions": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "fields": "",
-                  "values": false
-                },
-                "showPercentChange": false,
-                "textMode": "auto",
-                "wideLayout": true
-              }
-            },
-            "version": "13.2.0"
-          }
-        }
-      },
       "panel-5": {
         "kind": "Panel",
         "spec": {
@@ -500,7 +417,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -613,7 +530,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -694,7 +611,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -713,7 +630,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -826,7 +743,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -944,24 +861,11 @@
             "spec": {
               "element": {
                 "kind": "ElementReference",
-                "name": "panel-4"
-              },
-              "height": 8,
-              "width": 6,
-              "x": 12,
-              "y": 8
-            }
-          },
-          {
-            "kind": "GridLayoutItem",
-            "spec": {
-              "element": {
-                "kind": "ElementReference",
                 "name": "panel-6"
               },
               "height": 8,
-              "width": 6,
-              "x": 18,
+              "width": 12,
+              "x": 12,
               "y": 8
             }
           },

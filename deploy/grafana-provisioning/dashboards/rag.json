@@ -59,7 +59,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -138,7 +138,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -217,7 +217,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -298,7 +298,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -411,7 +411,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -524,7 +524,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -543,7 +543,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
