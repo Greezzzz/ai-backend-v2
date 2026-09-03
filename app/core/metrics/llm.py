@@ -49,6 +49,8 @@ llm_error_total = Counter(
 
 # Selisih estimasi tokenizer lokal vs usage aktual provider (aktual - estimasi).
 # Positif = undercount (estimasi lebih kecil dari aktual), negatif = overcount.
+# Histogram ini BISA negatif — untuk rata-rata (sum/count), jangan pakai
+# histogram_quantile (Prometheus menganggap observasi >= 0).
 llm_token_estimation_error = Histogram(
     "llm_token_estimation_error",
     "Estimation error of input tokens (actual - estimated)",
@@ -57,4 +59,16 @@ llm_token_estimation_error = Histogram(
         "provider"
     ],
     buckets=[-512, -256, -128, -64, -32, 0, 32, 64, 128, 256, 512],
+)
+
+# Besar selisih (selalu >= 0): |aktual - estimasi|. Histogram non-negatif,
+# jadi histogram_quantile p50/p95 valid untuk melihat "berapa besar bedanya".
+llm_token_estimation_abs_error = Histogram(
+    "llm_token_estimation_abs_error",
+    "Absolute estimation error of input tokens |actual - estimated|",
+    [
+        "model",
+        "provider"
+    ],
+    buckets=[0, 16, 32, 64, 128, 256, 512, 1024],
 )

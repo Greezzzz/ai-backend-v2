@@ -97,10 +97,78 @@ cloud** (security group AWS/GCP/Azure) — UFW di dalam VM tidak menutup port
 yang sudah diizinkan di level cloud.
 
 > Catatan Docker: UFW dan Docker kadang tidak akur karena Docker memodifikasi
-> `iptables` sendiri. Pada sebagian besar setup modern, aturan UFW tetap
-> berlaku untuk port yang di-publish ke host. Kalau ragu, verifikasi dengan
-> `nc` dari luar (langkah 2.4). Alternatif paling pasti: **jangan publish port
-> infra sama sekali** — cukup akses via SSH tunnel di bawah.
+> `iptables` sendiri — detail & solusinya di **2.5** dan **2.6** di bawah.
+
+---
+
+### 2.5 Build Docker putus (i/o timeout ke registry) setelah `ufw enable`
+
+**Gejala:** `docker build` / `docker compose up -d --build` gagal dengan:
+
+```
+ERROR: failed to resolve source metadata ...
+Head "https://registry-1.docker.io/v2/library/python/manifests/3.14-slim":
+dial tcp <ip>:443: i/o timeout
+```
+
+**Penyebab:** saat `ufw enable`, UFW mengubah *default policy* chain
+`FORWARD` iptables menjadi `DROP`. Container/build container butuh chain
+`FORWARD` untuk routing keluar ke internet — jadi koneksi baru ke Docker Hub
+ikut di-drop (container lama yang sudah jalan bisa tidak terasa karena
+koneksinya masih lewat conntrack).
+
+**Perbaikan:**
+
+```bash
+# 1) Izinkan forwarding — ini cuma routing antar/keluar container,
+#    BUKAN membuka port masuk. Koneksi masuk (chain INPUT) tetap deny.
+sudo sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
+sudo ufw reload
+
+# 2) Terapkan ulang aturan iptables Docker
+sudo systemctl restart docker
+
+# 3) Container mati setelah restart docker (compose prod tidak pakai
+#    restart: unless-stopped) — hidupkan lagi dulu
+cd /opt/apps/ai-backend
+docker compose -f docker-compose.prod.yml up -d
+
+# 4) Tes koneksi internet DARI DALAM CONTAINER (bukan dari host —
+#    ini yang merepresentasikan kondisi build)
+docker exec <nama-container-app> python -c \
+  "import urllib.request; print(urllib.request.urlopen('https://registry-1.docker.io/v2/', timeout=15).status)"
+
+# 5) Kalau sudah dapat status (200/401), build ulang
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+> Kalau perintah panjang disalin dari chat lalu terpecah jadi beberapa baris
+> (shell baca tiap baris terpisah), ketik ulang dalam **satu baris** utuh —
+> terutama perintah `sed` yang memakai tanda kutip.
+
+---
+
+### 2.6 UFW tidak memblokir port yang di-publish Docker
+
+UFW mengatur chain `INPUT`, tapi port bawaan compose (`ports: "5433:5432"`)
+memakai DNAT Docker di chain `FORWARD` — akibatnya port infra **tetap terbuka
+ke internet** walau UFW aktif, dan noise bot/scanner tetap masuk.
+
+Cara yang benar-benar pasti menutup port infra dari internet: **bind
+`127.0.0.1`** di compose:
+
+```yaml
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5433:5432"   # hanya bisa diakses dari dalam server / SSH tunnel
+```
+
+- App container **tetap** bisa akses via network internal docker
+  (`postgres:5432`, `redis:6379`) — tidak terpengaruh.
+- Yang berubah hanya akses dari luar server: port tidak lagi bisa dihajar
+  internet, tapi tetap bisa dibuka lewat SSH tunnel (lihat bagian 3).
+- Biarkan app API tetap `"8000:8000"` supaya aplikasi mobile bisa akses.
 
 ---
 

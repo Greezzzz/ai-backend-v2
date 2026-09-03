@@ -201,6 +201,29 @@ docker compose -f docker-compose.prod.yml down
 docker compose -f docker-compose.prod.yml down -v
 ```
 
+### Reset data Prometheus (kosongkan history metrik)
+
+Berguna kalau dashboard penuh time series lama yang tidak relevan (mis. sisa
+noise bot sebelum normalisasi path). Hanya menghapus **volume Prometheus**,
+tidak menyentuh DB aplikasi:
+
+```bash
+# stop & hapus container prometheus
+docker compose -f docker-compose.prod.yml stop prometheus
+docker compose -f docker-compose.prod.yml rm -f prometheus
+
+# hapus volume data prometheus (riwayat metrik hilang)
+docker volume rm ai-backend-v2-prod_prometheus-data
+
+# start ulang — metrik mulai kosong, terisi lagi tiap scrape
+docker compose -f docker-compose.prod.yml up -d prometheus
+```
+
+> Nama volume mengikuti prefix project compose (`ai-backend-v2-prod_`).
+> Cek dulu dengan `docker volume ls | grep prometheus` kalau ragu.
+> Alternatif tanpa hapus: biarkan — Prometheus otomatis membersihkan data
+> lebih lama dari `retention` (default 15 hari).
+
 ### URL setelah deploy
 
 | Service | URL |

@@ -13,6 +13,7 @@ from app.core.metrics.chat import chat_messages_sent_total
 from app.core.metrics.llm import (
     llm_input_tokens_total,
     llm_output_tokens_total,
+    llm_token_estimation_abs_error,
     llm_token_estimation_error,
 )
 from app.domain.llm import ChatMessage
@@ -82,6 +83,9 @@ class ChatUseCase:
             llm_token_estimation_error.labels(
                 model=self.default_model, provider="openai"
             ).observe(error)
+            llm_token_estimation_abs_error.labels(
+                model=self.default_model, provider="openai"
+            ).observe(abs(error))
         else:
             error = None
 

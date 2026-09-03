@@ -699,7 +699,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum(rate(llm_token_estimation_error_bucket[5m])) by (le))",
+                        "expr": "histogram_quantile(0.5, sum(rate(llm_token_estimation_abs_error_bucket[5m])) by (le))",
                         "legendFormat": "p50"
                       },
                       "version": "v0"
@@ -718,7 +718,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum(rate(llm_token_estimation_error_bucket[5m])) by (le))",
+                        "expr": "histogram_quantile(0.95, sum(rate(llm_token_estimation_abs_error_bucket[5m])) by (le))",
                         "legendFormat": "p95"
                       },
                       "version": "v0"
@@ -731,10 +731,10 @@
               "transformations": []
             }
           },
-          "description": "Selisih aktual - estimasi input token. Positif = undercount (estimasi lebih kecil dari aktual).",
+          "description": "Besar selisih |aktual - estimasi| input token. p50 = setengah request bedanya di bawah nilai ini, p95 = 95% request di bawahnya. Dipakai untuk menilai akurasi CHAT_TOKEN_CORRECTION.",
           "id": 7,
           "links": [],
-          "title": "Token estimation error (actual-estimated) quantiles",
+          "title": "Token estimation error |actual-estimated| (p50/p95)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -846,10 +846,10 @@
               "transformations": []
             }
           },
-          "description": "Rata-rata selisih aktual - estimasi input token (5m).",
+          "description": "Rata-rata (aktual - estimasi) input token. Positif = estimasi rata-rata lebih kecil dari aktual (undercount), negatif = overcount.",
           "id": 8,
           "links": [],
-          "title": "Avg token estimation error (5m)",
+          "title": "Avg token estimation error (actual-estimated, 5m)",
           "vizConfig": {
             "group": "stat",
             "kind": "VizConfig",
