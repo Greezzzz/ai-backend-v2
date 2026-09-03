@@ -60,16 +60,20 @@ class TraceMiddleware(BaseHTTPMiddleware):
             duration = time.monotonic() - start
             route_label = _route_label(request)
 
-            http_request_total.labels(
-                method=request.method,
-                path=route_label,
-                status_code=response.status_code
-            ).inc()
+            # Tidak dicatat ke metrik HTTP: request yang tidak match route mana pun
+            # (`unmatched` = noise scanner/bot) dan scrape `/metrics` sendiri (bukan
+            # trafik API). Log & tracing tetap jalan untuk request ini.
+            if route_label != "unmatched" and request.url.path != "/metrics":
+                http_request_total.labels(
+                    method=request.method,
+                    path=route_label,
+                    status_code=response.status_code
+                ).inc()
 
-            http_request_duration_seconds.labels(
-                method=request.method,
-                path=route_label
-            ).observe(duration)
+                http_request_duration_seconds.labels(
+                    method=request.method,
+                    path=route_label
+                ).observe(duration)
 
 
             latency = (
