@@ -1,3 +1,5 @@
+import random
+
 import httpx
 
 from app.core.config.retry import RetrySettings
@@ -53,7 +55,15 @@ class OpenAIRetryPolicy(RetryPolicy):
             self._settings.base_delay * self._settings.multiplier ** (attempt - 1)
         )
 
-        return min(
+        delay = min(
             delay,
             self._settings.max_delay
         )
+
+        # Full jitter: acak antara 0..delay supaya request yang gagal bersamaan
+        # tidak retry bareng-bareng (thundering herd) — penting saat kena
+        # rate limit (429) / timeout provider.
+        if self._settings.enable_jitter:
+            delay = random.uniform(0, delay)
+
+        return delay
